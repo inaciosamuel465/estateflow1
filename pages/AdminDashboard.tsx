@@ -1,35 +1,89 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Conversation } from '../App';
+import { Property, Contract, Conversation } from '../src/types';
 
 interface AdminDashboardProps {
   onNavigate: (view: string) => void;
   conversations?: Conversation[]; // Nova prop para contar mensagens
+  properties?: Property[];
+  contracts?: Contract[];
 }
 
 // Tipo para os alertas
 interface AlertItem {
   id: number;
-  type: 'price' | 'traffic' | 'lead' | 'system';
+  type: 'price' | 'traffic' | 'lead' | 'system' | 'contract' | 'user';
   title: string;
   desc: string;
   isNew: boolean;
   time: string;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, conversations = [] }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({
+  onNavigate,
+  conversations = [],
+  properties = [],
+  contracts = []
+}) => {
   const [timeRange, setTimeRange] = useState<'30d' | '3m' | '1y'>('30d');
   const [isBoosting, setIsBoosting] = useState(false);
   const [boostSuccess, setBoostSuccess] = useState(false);
   const [currentDate, setCurrentDate] = useState('');
 
+  // --- Keyboard Shortcuts ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Shortcuts com Alt para evitar conflito com navegador
+      if (e.altKey) {
+        switch (e.key.toLowerCase()) {
+          case 'd': onNavigate('dashboard'); break; // Dashboard
+          case 'l': onNavigate('listing'); break;   // Listings
+          case 'c': onNavigate('contracts'); break; // Contracts
+          case 'f': onNavigate('financial'); break; // Financial
+          case 'u': onNavigate('users'); break;     // Users
+          case 'n': // New Listing (Example shortcut)
+            onNavigate('listing');
+            // Em um app real, passaria um state para abrir modal direto
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onNavigate]);
+
   const totalUnread = conversations.reduce((acc, conv) => acc + conv.unreadCount, 0);
+
+  // Calcular estatísticas reais
+  const activeProperties = properties.filter(p => p.status === 'active');
+  const activeCount = activeProperties.length;
+
+  const totalViews = activeProperties.reduce((acc, p) => acc + (p.views || Math.floor(Math.random() * 500) + 50), 0);
+  const totalLeads = conversations.length + contracts.length * 3; // Estimativa baseada em dados reais
+
+  // Ticket Médio
+  const totalPrice = activeProperties.reduce((acc, p) => {
+    const price = typeof p.price === 'string'
+      ? parseFloat(p.price.replace(/[^\d]/g, '')) // Remove R$ e pontos se for string
+      : p.price;
+    return acc + (price || 0);
+  }, 0);
+  const averageTicket = activeCount > 0 ? totalPrice / activeCount : 0;
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
+  };
+
+  const formatViews = (num: number) => {
+    if (num > 1000) return (num / 1000).toFixed(1) + 'k';
+    return num.toString();
+  };
 
   // Dados Mockados de Alertas
   const alerts: AlertItem[] = [
-    { id: 1, type: 'price', title: 'Recomendação de preço', desc: 'Imóvel "Vila Sol" com baixo engajamento. IA sugere -5%.', isNew: true, time: '2h' },
-    { id: 2, type: 'traffic', title: 'Pico de tráfego', desc: 'Anúncio #4029 com 300% mais visitas orgânicas.', isNew: true, time: '4h' },
-    { id: 3, type: 'lead', title: 'Lead Quente', desc: 'Cliente VIP visualizou "Mansão Oscar Freire" 5x.', isNew: true, time: '15m' },
-    { id: 4, type: 'system', title: 'Backup Realizado', desc: 'Cópia de segurança do banco de dados concluída.', isNew: false, time: '1d' }
+    { id: 1, type: 'price', title: 'Recomendação de preço', desc: 'Imóvel com baixo engajamento. IA sugere revisão.', isNew: true, time: '2h' },
+    { id: 2, type: 'traffic', title: 'Pico de tráfego', desc: 'Anúncios recentes com alta procura.', isNew: true, time: '4h' },
+    { id: 3, type: 'system', title: 'Sincronização', desc: 'Dados do Firebase atualizados.', isNew: false, time: '1m' }
   ];
 
   const getAlertStyle = (type: string) => {
@@ -48,33 +102,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, conversatio
     setCurrentDate(now.toLocaleDateString('pt-BR', options));
   }, []);
 
-  // Mock Data configuration based on time range
+  // Mock Data configuration based on real data calculation
   const data = {
     '30d': {
-      active: 124,
-      views: '14.5k',
-      leads: 342,
-      conversion: '2.4%',
-      ticket: 'R$ 850k',
-      totalInteractions: '2.450',
+      active: activeCount,
+      views: formatViews(totalViews),
+      leads: totalLeads,
+      conversion: '2.4%', // Estimado
+      ticket: formatCurrency(averageTicket),
+      totalInteractions: formatViews(totalViews + totalLeads * 10),
       chartPath: "M0,220 C50,220 50,150 100,150 C150,150 150,100 200,100 C250,100 250,180 300,180 C350,180 350,120 400,120 C450,120 450,50 500,50 C550,50 550,90 600,90 C650,90 650,30 700,30 C750,30 750,80 800,80"
     },
     '3m': {
-      active: 145,
-      views: '48.2k',
-      leads: 1105,
-      conversion: '2.8%',
-      ticket: 'R$ 875k',
-      totalInteractions: '8.120',
+      active: activeCount, // Aumentaria historicamente, mas mantemos atual para simplificar
+      views: formatViews(totalViews * 3),
+      leads: totalLeads * 3,
+      conversion: '2.5%',
+      ticket: formatCurrency(averageTicket),
+      totalInteractions: formatViews((totalViews + totalLeads * 10) * 3),
       chartPath: "M0,250 C80,240 120,200 200,180 C280,160 320,100 400,120 C480,140 520,80 600,60 C680,40 720,20 800,10"
     },
     '1y': {
-      active: 180,
-      views: '195k',
-      leads: 4850,
-      conversion: '3.1%',
-      ticket: 'R$ 920k',
-      totalInteractions: '32.400',
+      active: activeCount,
+      views: formatViews(totalViews * 12),
+      leads: totalLeads * 12,
+      conversion: '2.6%',
+      ticket: formatCurrency(averageTicket),
+      totalInteractions: formatViews((totalViews + totalLeads * 10) * 12),
       chartPath: "M0,280 C100,270 150,250 250,200 C350,150 400,180 500,120 C600,60 650,100 800,20"
     }
   };
@@ -128,6 +182,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, conversatio
             </div>
           </div>
 
+          {/* Quick Actions & Shortcuts Hint */}
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white dark:bg-[#1a1d23] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="flex gap-4 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 no-scrollbar">
+              <button onClick={() => onNavigate('listing')} className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 transition-all hover:shadow-md whitespace-nowrap group">
+                <span className="material-symbols-outlined text-primary group-hover:scale-110 transition-transform">add_home</span> Novo Imóvel <span className="text-[10px] opacity-50 ml-1 font-normal border border-slate-300 dark:border-slate-600 px-1 rounded hidden lg:inline-block">Alt+L</span>
+              </button>
+              <button onClick={() => onNavigate('contracts')} className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 transition-all hover:shadow-md whitespace-nowrap group">
+                <span className="material-symbols-outlined text-purple-600 group-hover:scale-110 transition-transform">post_add</span> Novo Contrato <span className="text-[10px] opacity-50 ml-1 font-normal border border-slate-300 dark:border-slate-600 px-1 rounded hidden lg:inline-block">Alt+C</span>
+              </button>
+              <button onClick={() => onNavigate('users')} className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 transition-all hover:shadow-md whitespace-nowrap group">
+                <span className="material-symbols-outlined text-amber-600 group-hover:scale-110 transition-transform">person_add</span> Novo Usuário <span className="text-[10px] opacity-50 ml-1 font-normal border border-slate-300 dark:border-slate-600 px-1 rounded hidden lg:inline-block">Alt+U</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+              <span className="material-symbols-outlined text-[16px]">keyboard</span>
+              <span className="hidden md:inline">Atalhos: </span>
+              <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">Alt + D</span>
+              <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">Alt + F</span>
+            </div>
+          </div>
+
           {/* Banner de Insight da IA */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-indigo-600 p-6 md:p-8 shadow-xl shadow-primary/10 transition-all">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
@@ -150,8 +225,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, conversatio
                   onClick={handleBoost}
                   disabled={isBoosting || boostSuccess}
                   className={`whitespace-nowrap rounded-lg backdrop-blur-sm px-5 py-2.5 text-sm font-bold text-white transition-all border ${boostSuccess
-                      ? 'bg-green-500/80 border-green-400 cursor-default'
-                      : 'bg-white/20 hover:bg-white/30 border-white/30'
+                    ? 'bg-green-500/80 border-green-400 cursor-default'
+                    : 'bg-white/20 hover:bg-white/30 border-white/30'
                     }`}
                 >
                   {isBoosting ? (
@@ -260,8 +335,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, conversatio
                       key={range.id}
                       onClick={() => setTimeRange(range.id as any)}
                       className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${timeRange === range.id
-                          ? 'bg-white dark:bg-[#282e39] shadow text-slate-900 dark:text-white'
-                          : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                        ? 'bg-white dark:bg-[#282e39] shadow text-slate-900 dark:text-white'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                         }`}
                     >
                       {range.label}
@@ -389,6 +464,55 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, conversatio
               </div>
             </div>
           </div>
+
+          {/* Recent Activity Table (Desktop Optimized) */}
+          <div className="hidden md:block rounded-xl bg-white dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800/50 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Atividade Recente do Sistema</h3>
+              <button className="text-sm text-primary font-bold hover:underline">Ver Log Completo</button>
+            </div>
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-50 dark:bg-[#111318] text-xs font-bold text-slate-500 uppercase">
+                <tr>
+                  <th className="p-4 rounded-tl-lg">Horário</th>
+                  <th className="p-4">Tipo</th>
+                  <th className="p-4">Descrição</th>
+                  <th className="p-4">Usuário</th>
+                  <th className="p-4 rounded-tr-lg">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+                {[
+                  { time: '10:42', type: 'contract', desc: 'Contrato de Locação #4928 Assinado', user: 'Roberto Silva', status: 'success' },
+                  { time: '10:15', type: 'lead', desc: 'Novo lead capturado: Apto Jardins', user: 'Sistema', status: 'info' },
+                  { time: '09:30', type: 'financial', desc: 'Repasse efetuado: Proprietário Carlos', user: 'Admin', status: 'success' },
+                  { time: '09:00', type: 'listing', desc: 'Imóvel ID 102 atualizado', user: 'Julia Chen', status: 'warning' },
+                ].map((row, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-[#20242c] transition-colors">
+                    <td className="p-4 font-mono text-slate-500">{row.time}</td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${row.type === 'contract' ? 'bg-purple-100 text-purple-700' :
+                          row.type === 'lead' ? 'bg-amber-100 text-amber-700' :
+                            row.type === 'financial' ? 'bg-emerald-100 text-emerald-700' :
+                              'bg-blue-100 text-blue-700'
+                        }`}>
+                        {row.type}
+                      </span>
+                    </td>
+                    <td className="p-4 font-medium text-slate-700 dark:text-slate-300">{row.desc}</td>
+                    <td className="p-4 text-slate-500">{row.user}</td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-1">
+                        <div className={`size-2 rounded-full ${row.status === 'success' ? 'bg-emerald-500' : row.status === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`}></div>
+                        <span className="text-xs capitalize">{row.status}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
           {/* Footer */}
           <div className="mt-auto pt-6 text-center text-xs text-slate-400 dark:text-slate-600">
             © 2023 EstateAI Platform. Todos os direitos reservados.

@@ -13,324 +13,46 @@ import FinancialManagement from './pages/FinancialManagement';
 import ChatManagement from './pages/ChatManagement';
 import MarketingStudio from './pages/MarketingStudio';
 import ContractsPage from './pages/ContractsPage';
+import Analytics from './pages/Analytics';
+import NotificationCenter from './components/NotificationCenter';
+import WhatsAppButton from './components/WhatsAppButton';
 
-// Public/Auth Components
+import {
+  subscribeToAuthChanges,
+  logoutUser
+} from './src/services/authService';
+import {
+  getProperties,
+  getContracts,
+  getUsers,
+  addProperty,
+  updateProperty,
+  deleteProperty,
+  addContract,
+  deleteContract,
+  updateContract as updateContractService,
+  toggleFavorite,
+  saveMessage,
+  subscribeToConversations,
+  markConversationAsRead,
+  subscribeToNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  clearAllNotifications
+} from './src/services/dataService';
 import LoginPage, { RegisterData } from './pages/LoginPage';
 import ClientHome from './pages/ClientHome';
 import ClientChat from './pages/ClientChat';
 import OwnerLanding from './pages/OwnerLanding';
 import UserDashboard from './pages/UserDashboard';
+import {
+  createContractNotification,
+  createPropertyNotification,
+  createLeadNotification
+} from './src/services/notificationHelpers';
 
 // --- Types ---
-export interface ChatMessage {
-  id: number;
-  sender: 'agent' | 'user';
-  text: string;
-  time: string;
-  read: boolean;
-}
-
-export interface Conversation {
-  id: number | string; // Geralmente o ID do usuário
-  userId: number;
-  userName: string;
-  userAvatar: string;
-  userRole: 'client' | 'owner' | 'lead';
-  lastMessage: string;
-  lastMessageTime: string;
-  unreadCount: number;
-  messages: ChatMessage[];
-  propertyInterest?: string; // Título do imóvel de interesse inicial
-}
-
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: 'admin' | 'owner' | 'client';
-  phone?: string;
-  avatar?: string;
-  document?: string; // CPF/CNPJ
-  address?: string;
-}
-
-export interface Property {
-  id: number | string;
-  title: string;
-  price: string;
-  location: string;
-  image: string;
-  beds: number;
-  baths: number;
-  area: number;
-  tag?: string;
-  type: string;
-  purpose: 'sale' | 'rent';
-  ownerId?: number; // Link com o proprietário
-  status?: 'active' | 'draft' | 'sold' | 'rented'; // Adicionado 'rented'
-  stats?: {
-    views: number;
-    likes: number;
-    leads: number;
-  };
-  // Campos detalhados para edição completa
-  description?: string;
-  amenities?: string[];
-  images?: string[];
-  addressDetails?: {
-    street: string;
-    number: string;
-    neighborhood: string;
-    city: string;
-    state: string;
-    zip: string;
-  };
-}
-
-export interface Contract {
-  id: number | string;
-  propertyId: number | string;
-  propertyTitle: string;
-  propertyImage: string;
-  type: 'rent' | 'sale';
-  status: 'active' | 'completed' | 'late' | 'draft' | 'expiring';
-
-  // Partes Envolvidas
-  clientId: number;
-  clientName: string;
-  clientPhone: string;
-  ownerId: number;
-  ownerName: string;
-  ownerPhone: string;
-
-  // Financeiro
-  value: number;
-  commissionRate: number;
-  dueDay: number;
-  startDate: string;
-  endDate?: string;
-
-  // Controle de Financiamento
-  installmentsTotal?: number;
-  installmentsPaid?: number;
-
-  // Controle de Pagamento
-  lastPaymentDate?: string;
-  nextPaymentStatus: 'pending' | 'paid' | 'overdue';
-
-  // Jurídico (Novo)
-  templateType?: 'rent_residential' | 'sale_cash' | 'season';
-  signatureStatus?: 'pending' | 'signed';
-}
-
-// --- Mock Data Inicial (Imagens Reais Fixas) ---
-const INITIAL_PROPERTIES: Property[] = [
-  {
-    id: 1,
-    title: "Residencial Luxo Augusta", // Removido "Apartamento" para evitar duplicação visual
-    price: "R$ 450.000",
-    location: "Consolação, SP",
-    image: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?q=80&w=800&auto=format&fit=crop",
-    beds: 2,
-    baths: 2,
-    area: 80,
-    tag: "Destaque",
-    type: "Apartamento",
-    purpose: 'sale',
-    ownerId: 101,
-    status: 'active',
-    stats: { views: 1240, likes: 45, leads: 12 }
-  },
-  {
-    id: 'cob-paulista-1234',
-    title: "Cobertura Panorâmica",
-    price: "R$ 2.450.000",
-    location: "Bela Vista, SP",
-    image: "https://images.unsplash.com/photo-1512918760513-95f192972701?q=80&w=800&auto=format&fit=crop",
-    beds: 4,
-    baths: 4,
-    area: 285,
-    tag: "Luxo",
-    type: "Apartamento",
-    purpose: 'sale',
-    ownerId: 102,
-    status: 'active',
-    stats: { views: 5400, likes: 320, leads: 50 }
-  },
-  {
-    id: 3,
-    title: "Studio Moderno Jardins",
-    price: "R$ 3.200/mês",
-    location: "Jardins, SP",
-    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=800&auto=format&fit=crop",
-    beds: 1,
-    baths: 1,
-    area: 45,
-    tag: "Mobiliado",
-    type: "Apartamento",
-    purpose: 'rent',
-    ownerId: 999,
-    status: 'rented',
-    stats: { views: 800, likes: 20, leads: 5 }
-  },
-  {
-    id: 5,
-    title: "Mansão Oscar Freire",
-    price: "R$ 890.000",
-    location: "Jardins, SP",
-    image: "https://images.unsplash.com/photo-1600596542815-27b88e39e1d7?q=80&w=800&auto=format&fit=crop",
-    beds: 3,
-    baths: 3,
-    area: 150,
-    tag: "Novo",
-    type: "Casa",
-    purpose: 'sale',
-    ownerId: 101,
-    status: 'active',
-    stats: { views: 2100, likes: 150, leads: 25 }
-  },
-  {
-    id: 8,
-    title: "Vila Charmosa",
-    price: "R$ 5.500/mês",
-    location: "Vila Madalena, SP",
-    image: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?q=80&w=800&auto=format&fit=crop",
-    beds: 2,
-    baths: 2,
-    area: 110,
-    tag: "Pet Friendly",
-    type: "Casa",
-    purpose: 'rent',
-    ownerId: 102,
-    status: 'active',
-    stats: { views: 950, likes: 40, leads: 8 }
-  },
-];
-
-const INITIAL_USERS: User[] = [
-  { id: 1, name: "Administrador", email: "admin@suite.com", role: "admin", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop" },
-  { id: 101, name: "Carlos Proprietário", email: "carlos@email.com", role: "owner", phone: "5511999999999", document: "123.456.789-00", address: "Av. Brasil, 100", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200&auto=format&fit=crop" },
-  { id: 102, name: "Ana Proprietária", email: "ana@email.com", role: "owner", phone: "5511988888888", document: "987.654.321-99", address: "Rua das Flores, 50", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop" },
-  { id: 200, name: "João Cliente", email: "joao@email.com", role: "client", phone: "5511977777777", document: "456.123.789-11", address: "Al. Santos, 400", avatar: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200&auto=format&fit=crop" }
-];
-
-const INITIAL_CONTRACTS: Contract[] = [
-  {
-    id: 1001,
-    propertyId: 3,
-    propertyTitle: "Studio Moderno Jardins",
-    propertyImage: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=400&auto=format&fit=crop",
-    type: 'rent',
-    status: 'active',
-    clientId: 200,
-    clientName: "João Cliente",
-    clientPhone: "5511977777777",
-    ownerId: 101,
-    ownerName: "Carlos Proprietário",
-    ownerPhone: "5511999999999",
-    value: 3200,
-    commissionRate: 10,
-    dueDay: 5,
-    startDate: "2023-10-01",
-    endDate: "2024-10-01",
-    nextPaymentStatus: 'pending',
-    templateType: 'rent_residential',
-    signatureStatus: 'signed'
-  },
-  {
-    id: 1002,
-    propertyId: 99,
-    propertyTitle: "Cobertura Jardins (Vendido)",
-    propertyImage: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=400&auto=format&fit=crop",
-    type: 'sale',
-    status: 'active',
-    clientId: 200,
-    clientName: "João Cliente",
-    clientPhone: "5511977777777",
-    ownerId: 102,
-    ownerName: "Ana Proprietária",
-    ownerPhone: "5511988888888",
-    value: 15000,
-    commissionRate: 5,
-    dueDay: 15,
-    startDate: "2024-01-15",
-    nextPaymentStatus: 'paid',
-    installmentsTotal: 120,
-    installmentsPaid: 12,
-    templateType: 'sale_cash',
-    signatureStatus: 'signed'
-  },
-  {
-    id: 1003,
-    propertyId: 8,
-    propertyTitle: "Vila Charmosa",
-    propertyImage: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?q=80&w=400&auto=format&fit=crop",
-    type: 'rent',
-    status: 'active',
-    clientId: 200,
-    clientName: "João Cliente",
-    clientPhone: "5511977777777",
-    ownerId: 102,
-    ownerName: "Ana Proprietária",
-    ownerPhone: "5511988888888",
-    value: 5500,
-    commissionRate: 8,
-    dueDay: 10,
-    startDate: "2023-01-01",
-    endDate: "2023-12-31",
-    nextPaymentStatus: 'paid',
-    templateType: 'rent_residential',
-    signatureStatus: 'signed'
-  }
-];
-
-// Dados Iniciais de Conversas (WhatsApp Style)
-const INITIAL_CONVERSATIONS: Conversation[] = [
-  {
-    id: 200, // ID do usuário
-    userId: 200,
-    userName: "João Cliente",
-    userAvatar: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200&auto=format&fit=crop",
-    userRole: 'client',
-    lastMessage: "Poderia me enviar o boleto deste mês?",
-    lastMessageTime: "10:30",
-    unreadCount: 2,
-    messages: [
-      { id: 1, sender: 'agent', text: "Olá João, como posso ajudar?", time: "10:00", read: true },
-      { id: 2, sender: 'user', text: "Bom dia! Tudo bem?", time: "10:05", read: true },
-      { id: 3, sender: 'user', text: "Poderia me enviar o boleto deste mês?", time: "10:30", read: false }
-    ]
-  },
-  {
-    id: 101,
-    userId: 101,
-    userName: "Carlos Proprietário",
-    userAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200&auto=format&fit=crop",
-    userRole: 'owner',
-    lastMessage: "Obrigado pelo repasse!",
-    lastMessageTime: "Ontem",
-    unreadCount: 0,
-    messages: [
-      { id: 1, sender: 'agent', text: "Olá Carlos, o repasse foi efetuado.", time: "14:00", read: true },
-      { id: 2, sender: 'user', text: "Obrigado pelo repasse!", time: "14:15", read: true }
-    ]
-  },
-  {
-    id: 999, // Lead sem cadastro completo
-    userId: 999,
-    userName: "Mariana Silva (Interessada)",
-    userAvatar: "https://ui-avatars.com/api/?name=Mariana+Silva&background=random",
-    userRole: 'lead',
-    lastMessage: "Gostaria de visitar o imóvel Residencial Luxo.",
-    lastMessageTime: "09:15",
-    unreadCount: 1,
-    propertyInterest: "Residencial Luxo Augusta",
-    messages: [
-      { id: 1, sender: 'user', text: "Olá, tenho interesse no Residencial Luxo Augusta.", time: "09:10", read: true },
-      { id: 2, sender: 'user', text: "Gostaria de marcar uma visita.", time: "09:15", read: false }
-    ]
-  }
-];
+import { ChatMessage, Conversation, User, Property, Contract } from './src/types';
 
 // Wrapper de Scroll
 const PublicLayout = ({ children }: { children?: React.ReactNode }) => (
@@ -342,17 +64,90 @@ const PublicLayout = ({ children }: { children?: React.ReactNode }) => (
 const App: React.FC = () => {
   // --- Global State ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
-  const [properties, setProperties] = useState<Property[]>(INITIAL_PROPERTIES);
-  const [contracts, setContracts] = useState<Contract[]>(INITIAL_CONTRACTS);
+  const [users, setUsers] = useState<User[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+
+  // --- Auth Subscription & Data Loading ---
+  useEffect(() => {
+    const unsubscribeAuth = subscribeToAuthChanges((user) => {
+      setCurrentUser(user);
+    });
+
+    const unsubscribeChat = subscribeToConversations((convs) => {
+      setConversations(convs);
+    });
+
+    const unsubscribeNotifications = subscribeToNotifications((notifs) => {
+      setNotifications(notifs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    });
+
+    // Carregar dados reais
+    const loadData = async () => {
+      const props = await getProperties();
+      setProperties(props);
+
+      const conts = await getContracts();
+      setContracts(conts);
+
+      const userList = await getUsers();
+      setUsers(userList);
+    }
+    loadData();
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeChat();
+      unsubscribeNotifications();
+    };
+  }, []);
 
   // --- Chat State (Replaces simple messages array) ---
-  const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+
+  // --- Notifications State ---
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   // --- Navigation State ---
   const [currentView, setCurrentView] = useState('home');
   const [selectedPropertyId, setSelectedPropertyId] = useState<number | string | null>(null);
   const [propertyToEdit, setPropertyToEdit] = useState<Property | null>(null);
+
+  // --- Check for expiring contracts ---
+  useEffect(() => {
+    const checkExpiringContracts = async () => {
+      const now = new Date();
+      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      for (const contract of contracts) {
+        if (contract.endDate && contract.status === 'active') {
+          const endDate = new Date(contract.endDate);
+          const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+          // Notificar se faltam 30, 15 ou 7 dias
+          if (daysLeft === 30 || daysLeft === 15 || daysLeft === 7) {
+            // Verificar se já existe notificação para este contrato neste período
+            const existingNotif = notifications.find(n =>
+              n.type === 'contract' &&
+              n.message.includes(contract.propertyTitle) &&
+              n.message.includes('vence')
+            );
+
+            if (!existingNotif) {
+              await createContractNotification(contract.id, contract.propertyTitle, 'expiring');
+            }
+          }
+        }
+      }
+    };
+
+    // Verificar ao carregar e depois a cada 24 horas
+    if (contracts.length > 0 && currentUser?.role === 'admin') {
+      checkExpiringContracts();
+      const interval = setInterval(checkExpiringContracts, 24 * 60 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [contracts, currentUser, notifications]);
 
   // --- Client Chat Modal State ---
   const [isClientChatOpen, setIsClientChatOpen] = useState(false);
@@ -378,12 +173,22 @@ const App: React.FC = () => {
 
   // --- CRUD Handlers ---
 
-  const handleAddProperty = (newProperty: Property) => {
+
+  // --- CRUD Handlers ---
+
+  const handleAddProperty = async (newProperty: Property) => {
+    // Optimistic Update
     setProperties(prev => [newProperty, ...prev]);
     setCurrentView('all-listings');
+
+    // Save to Firebase
+    await addProperty(newProperty);
+
+    // Create notification
+    await createPropertyNotification(newProperty.title, 'created');
   };
 
-  const handleUpdateProperty = (id: number | string, updatedData: Partial<Property>) => {
+  const handleUpdateProperty = async (id: number | string, updatedData: Partial<Property>) => {
     setProperties(prev => prev.map(p =>
       p.id === id ? { ...p, ...updatedData } : p
     ));
@@ -391,10 +196,13 @@ const App: React.FC = () => {
       setCurrentView('all-listings');
       setPropertyToEdit(null);
     }
+    // Update Firebase
+    await updateProperty(String(id), updatedData);
   };
 
-  const handleDeleteProperty = (id: number | string) => {
+  const handleDeleteProperty = async (id: number | string) => {
     setProperties(prev => prev.filter(p => p.id !== id));
+    await deleteProperty(String(id));
   };
 
   const handleEditFull = (property: Property) => {
@@ -403,58 +211,53 @@ const App: React.FC = () => {
   };
 
   // --- Handlers de Contratos ---
-  const handleAddContract = (newContract: Contract) => {
+  const handleAddContract = async (newContract: Contract) => {
     setContracts(prev => [newContract, ...prev]);
     if (newContract.type === 'rent') {
       handleUpdateProperty(newContract.propertyId, { status: 'rented' });
     } else {
       handleUpdateProperty(newContract.propertyId, { status: 'sold' });
     }
+    await addContract(newContract);
+
+    // Create notifications
+    await createContractNotification(newContract.id, newContract.propertyTitle, 'created');
+    await createPropertyNotification(
+      newContract.propertyTitle,
+      newContract.type === 'rent' ? 'rented' : 'sold'
+    );
   };
 
-  const handleUpdateContract = (id: number | string, updatedData: Partial<Contract>) => {
+  const handleUpdateContract = async (id: number | string, updatedData: Partial<Contract>) => {
     setContracts(prev => prev.map(c =>
       c.id === id ? { ...c, ...updatedData } : c
     ));
+    await updateContractService(String(id), updatedData);
   };
 
-  const handleDeleteContract = (id: number | string) => {
+  const handleDeleteContract = async (id: number | string) => {
     setContracts(prev => prev.filter(c => c.id !== id));
+    await deleteContract(String(id));
   };
 
   // --- Handlers de Autenticação ---
 
-  const handleLogin = (email: string) => {
-    const user = users.find(u => u.email === email);
-    if (user) {
-      setCurrentUser(user);
-      if (user.role === 'admin') {
-        setCurrentView('dashboard');
-      } else {
-        if (currentView !== 'details') {
-          setCurrentView('home');
-        }
-      }
+  const handleLogin = (user: User) => {
+    setCurrentUser(user);
+    if (user.role === 'admin') {
+      setCurrentView('dashboard');
     } else {
-      alert("Usuário não encontrado (Mock)");
+      setCurrentView('home');
     }
   };
 
-  const handleRegister = (data: RegisterData) => {
-    const newUser: User = {
-      id: Date.now(),
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      role: data.role,
-      avatar: `https://ui-avatars.com/api/?name=${data.name}&background=random`
-    };
-    setUsers([...users, newUser]);
-    setCurrentUser(newUser);
+  const handleRegister = (user: User) => {
+    setCurrentUser(user);
     setCurrentView('home');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutUser();
     setCurrentUser(null);
     setCurrentView('home');
     setIsClientChatOpen(false);
@@ -481,77 +284,90 @@ const App: React.FC = () => {
     setIsClientChatOpen(true);
   };
 
-  const handleFavoriteAction = (id: number | string) => {
+  const handleFavoriteAction = async (id: number | string) => {
     if (!currentUser) {
       alert("Você precisa fazer login para favoritar imóveis.");
       setCurrentView('login');
       return;
     }
-    alert(`Imóvel ${id} adicionado aos favoritos de ${currentUser.name}!`);
+
+    const newFavorites = await toggleFavorite(String(currentUser.id), id);
+    // Atualiza estado local para feedback imediato
+    setCurrentUser(prev => prev ? { ...prev, favorites: newFavorites } : null);
+    // alert(`Ação de favoritos salva para ${currentUser.name}!`); // Alert opcional, visual é melhor
   };
 
   // --- Centralized Message Handler ---
-  const handleSendMessage = (text: string, sender: 'user' | 'agent', userId?: number | string) => {
+  const handleSendMessage = async (text: string, sender: 'user' | 'agent', userId?: number | string) => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newMessage: ChatMessage = {
       id: Date.now(),
       sender,
       text,
       time,
-      read: sender === 'agent' // Se admin manda, está lido
+      read: sender === 'agent'
     };
 
-    setConversations(prev => {
-      // Se sender é agent, precisamos saber para quem estamos mandando (userId)
-      // Se sender é user (via ClientChat), assumimos currentUser.id
+    // Identificar ID da conversa (sempre string)
+    const targetUserId = userId || currentUser?.id || "anonymous";
+    const conversationId = String(targetUserId);
 
-      const targetUserId = userId || currentUser?.id || 999;
+    // Preparar dados da conversa para update/create
+    const targetUser = users.find(u => String(u.id) === String(targetUserId));
 
-      const existingConvIndex = prev.findIndex(c => c.userId === targetUserId);
+    const conversationData: Partial<Conversation> = {
+      userId: Number(targetUserId) || 0, // Fallback se não for número (ex: string hash)
+      id: conversationId,
+      userName: targetUser?.name || currentUser?.name || "Usuário",
+      userAvatar: targetUser?.avatar || currentUser?.avatar || "https://ui-avatars.com/api/?name=User",
+      userRole: targetUser?.role || currentUser?.role || 'client',
+      lastMessage: text,
+      lastMessageTime: time,
+      unreadCount: sender === 'user' ? 1 : 0
+    };
 
-      if (existingConvIndex >= 0) {
-        const updatedConversations = [...prev];
-        const conv = updatedConversations[existingConvIndex];
+    // Salvar no Firebase (Optimistic update on UI via subscription)
+    await saveMessage(conversationId, newMessage, conversationData);
 
-        conv.messages.push(newMessage);
-        conv.lastMessage = text;
-        conv.lastMessageTime = time;
-        if (sender === 'user') conv.unreadCount += 1; // Incrementa se usuário mandou
-
-        // Move to top
-        updatedConversations.splice(existingConvIndex, 1);
-        updatedConversations.unshift(conv);
-        return updatedConversations;
-      } else {
-        // Nova conversa (ex: usuário novo no chat)
-        const newUser = users.find(u => u.id === targetUserId);
-        const newConv: Conversation = {
-          id: targetUserId,
-          userId: targetUserId as number,
-          userName: newUser?.name || "Novo Usuário",
-          userAvatar: newUser?.avatar || `https://ui-avatars.com/api/?name=User`,
-          userRole: newUser?.role === 'owner' ? 'owner' : 'client',
-          lastMessage: text,
-          lastMessageTime: time,
-          unreadCount: sender === 'user' ? 1 : 0,
-          messages: [newMessage]
-        };
-        return [newConv, ...prev];
-      }
-    });
+    // Create notification for new user messages (leads)
+    if (sender === 'user' && currentUser?.role !== 'admin') {
+      await createLeadNotification(
+        conversationData.userName || 'Usuário',
+        clientChatPropertyTitle || undefined
+      );
+    }
   };
 
-  const handleMarkAsRead = (conversationId: number | string) => {
+  const handleMarkAsRead = async (conversationId: number | string) => {
+    // Atualização Otimista
     setConversations(prev => prev.map(c =>
       c.id === conversationId ? { ...c, unreadCount: 0 } : c
     ));
+    // Persistência
+    await markConversationAsRead(String(conversationId));
   };
 
   // Helper para obter mensagens da conversa ativa do cliente logado
   const getCurrentUserMessages = () => {
     if (!currentUser) return [];
-    const conv = conversations.find(c => c.userId === currentUser.id);
+    // Comparação frouxa (string vs number) pois IDs do FB são string e mock são number
+    const conv = conversations.find(c => String(c.userId) === String(currentUser.id));
     return conv ? conv.messages : [];
+  };
+
+  // --- Notification Handlers ---
+  const handleMarkNotificationAsRead = async (id: string | number) => {
+    await markNotificationAsRead(String(id));
+  };
+
+  const handleMarkAllNotificationsAsRead = async () => {
+    await markAllNotificationsAsRead();
+  };
+
+  const handleClearAllNotifications = async () => {
+    if (confirm('Tem certeza que deseja limpar todas as notificações?')) {
+      await clearAllNotifications();
+    }
   };
 
   // --- Render Logic ---
@@ -564,6 +380,8 @@ const App: React.FC = () => {
           <AdminDashboard
             onNavigate={setCurrentView}
             conversations={conversations}
+            properties={properties}
+            contracts={contracts}
           />
         );
         case 'listing': return <NewListing onPublish={handleAddProperty} currentUser={currentUser} />;
@@ -619,12 +437,14 @@ const App: React.FC = () => {
         case 'admin-details': return (
           <PropertyDetails
             propertyId={selectedPropertyId}
+            properties={properties}
             onBack={() => setCurrentView('all-listings')}
             isPublic={false}
           />
         );
         case 'ai': return <ImageStudio />;
         case 'simulation': return <AreaSimulation />;
+        case 'analytics': return <Analytics />;
         default: return <AdminDashboard onNavigate={setCurrentView} />;
       }
     };
@@ -633,8 +453,19 @@ const App: React.FC = () => {
       <div className="flex h-screen w-full overflow-hidden bg-background-light dark:bg-background-dark">
         {/* Menu Lateral Admin */}
         <div className="w-16 md:w-20 flex flex-col items-center py-6 bg-white dark:bg-[#0b0e14] border-r border-slate-200 dark:border-slate-800 z-50 shrink-0">
-          <div className="mb-8 p-2 bg-primary/20 rounded-xl text-primary" title="EstateFlow Suite">
+          <div className="mb-4 p-2 bg-primary/20 rounded-xl text-primary" title="EstateFlow Suite">
             <span className="material-symbols-outlined notranslate text-2xl">roofing</span>
+          </div>
+
+          {/* Notification Center */}
+          <div className="mb-4 w-full flex justify-center">
+            <NotificationCenter
+              notifications={notifications}
+              onMarkAsRead={handleMarkNotificationAsRead}
+              onMarkAllAsRead={handleMarkAllNotificationsAsRead}
+              onClearAll={handleClearAllNotifications}
+              position="left"
+            />
           </div>
 
           <div className="flex flex-col gap-4 w-full px-2">
@@ -647,6 +478,7 @@ const App: React.FC = () => {
             <NavButton active={currentView === 'listing'} onClick={() => setCurrentView('listing')} icon="add_business" tooltip="Novo Anúncio" />
             <NavButton active={currentView === 'map'} onClick={() => setCurrentView('map')} icon="map" tooltip="Mapa Interativo" />
             <NavButton active={currentView === 'crm'} onClick={() => setCurrentView('crm')} icon="person" tooltip="CRM Clientes" />
+            <NavButton active={currentView === 'analytics'} onClick={() => setCurrentView('analytics')} icon="insights" tooltip="Analytics & Relatórios" />
             <NavButton active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon="auto_awesome" tooltip="Estúdio de IA" />
             <NavButton active={currentView === 'simulation'} onClick={() => setCurrentView('simulation')} icon="view_in_ar" tooltip="Simulação de Área" />
           </div>
@@ -711,6 +543,7 @@ const App: React.FC = () => {
       <PublicLayout>
         <PropertyDetails
           propertyId={selectedPropertyId}
+          properties={properties}
           onBack={() => setCurrentView('home')}
           isPublic={true}
           onChatStart={handleClientChatStart}
@@ -724,6 +557,10 @@ const App: React.FC = () => {
             onSendMessage={(text) => handleSendMessage(text, 'user')}
           />
         )}
+        <WhatsAppButton
+          phoneNumber="+5511987654321"
+          propertyTitle={properties.find(p => p.id === selectedPropertyId)?.title}
+        />
       </PublicLayout>
     );
   }
@@ -749,6 +586,7 @@ const App: React.FC = () => {
           onSendMessage={(text) => handleSendMessage(text, 'user')}
         />
       )}
+      <WhatsAppButton phoneNumber="+5511987654321" />
     </PublicLayout>
   );
 };

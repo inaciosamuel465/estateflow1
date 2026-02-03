@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Property } from '../App';
+import { Property } from '../src/types';
 import { GoogleGenAI } from "@google/genai";
 
 interface MarketingStudioProps {
@@ -29,24 +29,24 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
     const [format, setFormat] = useState<'feed' | 'story'>('story');
     const [tone, setTone] = useState<'professional' | 'viral' | 'urgent'>('viral');
     const [template, setTemplate] = useState<TemplateType>('modern');
-    
+
     // AI Content States
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedCaption, setGeneratedCaption] = useState(''); // Texto do post
     const [generatedHeadline, setGeneratedHeadline] = useState(''); // Texto NA imagem
-    
+
     // Download State
     const [isDownloading, setIsDownloading] = useState(false);
 
     // Refs
     const artboardRef = useRef<HTMLDivElement>(null);
-    
+
     // History
     const [campaignHistory, setCampaignHistory] = useState<MarketingCampaign[]>([]);
 
     // Derived
     const selectedProperty = properties.find(p => p.id.toString() === selectedPropertyId);
-    
+
     // Default Image (Placeholder)
     const displayImage = selectedProperty?.image || "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=1000&auto=format&fit=crop";
 
@@ -62,7 +62,7 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
         const apiKey = process.env.API_KEY;
 
         // Contexto do Imóvel
-        const propertyContext = selectedProperty 
+        const propertyContext = selectedProperty
             ? `Imóvel: ${selectedProperty.title}, Preço: ${selectedProperty.price}, Local: ${selectedProperty.location}, Tipo: ${selectedProperty.type}. Benefícios: ${selectedProperty.amenities?.join(', ')}.`
             : "Imóvel de alto padrão, localização privilegiada, acabamento premium.";
 
@@ -70,14 +70,14 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
             if (!apiKey) {
                 // Mock Simulation
                 await new Promise(resolve => setTimeout(resolve, 2000));
-                setGeneratedCaption(platform === 'instagram' 
+                setGeneratedCaption(platform === 'instagram'
                     ? `🚀 Oportunidade Incrível! \n\nConheça este ${selectedProperty?.type || 'imóvel'} espetacular em ${selectedProperty?.location?.split(',')[0] || 'região nobre'}. \n\n💎 Acabamento de primeira\n📍 Localização estratégica\n🔑 Pronto para morar\n\nAgende sua visita agora mesmo! 👇\n\n#Imoveis #Oportunidade #${selectedProperty?.type || 'RealEstate'} #Venda`
                     : `Olá! 👋 Separei este imóvel que é a sua cara: ${selectedProperty?.title}. \n\nEstá saindo por ${selectedProperty?.price}. As condições estão ótimas essa semana. Quer agendar uma visita?`);
-                
+
                 setGeneratedHeadline(tone === 'urgent' ? "ÚLTIMAS UNIDADES!" : tone === 'viral' ? "O APÊ DOS SONHOS 😍" : "ALTO PADRÃO E EXCLUSIVIDADE");
             } else {
                 const ai = new GoogleGenAI({ apiKey });
-                
+
                 // 1. Gerar Legenda (Caption)
                 const captionPrompt = `Atue como um especialista em marketing imobiliário. Crie uma legenda para ${platform} (${format}) com tom ${tone}.
                 Imóvel: ${propertyContext}.
@@ -87,10 +87,10 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                     model: 'gemini-3-flash-preview',
                     contents: { parts: [{ text: captionPrompt }] }
                 });
-                
+
                 // 2. Gerar Headline (Frase curta para a imagem)
                 const headlinePrompt = `Crie UMA única frase curta (máximo 5 palavras) de alto impacto para colocar em cima da foto deste imóvel. Tom: ${tone}. Exemplo: "Sua Nova Vida Começa Aqui". Imóvel: ${propertyContext}`;
-                
+
                 const headlineResponse = await ai.models.generateContent({
                     model: 'gemini-3-flash-preview',
                     contents: { parts: [{ text: headlinePrompt }] }
@@ -103,10 +103,10 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                     setGeneratedHeadline(headlineResponse.text.replace(/"/g, ''));
                 }
             }
-            
+
             // Se estiver no mobile, após gerar, sugere ir para resultados ou mantem preview
             if (window.innerWidth < 1024) {
-               // Mantem no preview para ver a arte, o usuario navega para ver o texto
+                // Mantem no preview para ver a arte, o usuario navega para ver o texto
             }
 
         } catch (e) {
@@ -200,7 +200,7 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
     };
 
     // --- Render Helpers (Templates) ---
-    
+
     const renderImageOverlay = () => {
         const price = selectedProperty?.price || "Consulte";
         const title = selectedProperty?.title || "Imóvel Exclusivo";
@@ -250,7 +250,7 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                                     <p className="text-white/90 text-sm mt-2">{title}</p>
                                 </div>
                                 <div className="bg-white text-slate-900 px-3 py-3 rounded-2xl font-bold text-sm text-center min-w-[80px]">
-                                    {price.split(' ')[0]}<br/>{price.split(' ')[1]}
+                                    {price.split(' ')[0]}<br />{price.split(' ')[1]}
                                 </div>
                             </div>
                         </div>
@@ -275,7 +275,7 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                                 </div>
                             )}
                         </div>
-                        
+
                         <div className="space-y-1">
                             <h2 className="text-white font-extrabold text-3xl drop-shadow-lg leading-tight">{headline}</h2>
                             <div className="w-12 h-1 bg-primary rounded-full my-3"></div>
@@ -302,7 +302,7 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                     </button>
                     <div>
                         <h1 className="text-lg lg:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <span className="material-symbols-outlined text-primary text-xl lg:text-2xl">campaign</span> 
+                            <span className="material-symbols-outlined text-primary text-xl lg:text-2xl">campaign</span>
                             <span className="hidden lg:inline">Marketing Studio</span>
                             <span className="lg:hidden">Marketing</span>
                         </h1>
@@ -316,20 +316,20 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
 
             {/* Main Content with Mobile Tabs Logic */}
             <main className="flex-1 overflow-hidden flex flex-col lg:flex-row pb-[60px] lg:pb-0 relative">
-                
+
                 {/* --- Left Panel: Controls (Setup Tab on Mobile) --- */}
                 <div className={`
                     w-full lg:w-[380px] bg-white dark:bg-[#111318] border-r border-slate-200 dark:border-slate-800 
                     flex-col overflow-y-auto p-4 lg:p-6 gap-6 z-10 shadow-xl lg:h-full lg:flex
                     ${activeMobileTab === 'setup' ? 'flex' : 'hidden'}
                 `}>
-                    
+
                     {/* 1. Seleção de Imóvel */}
                     <div className="space-y-3">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                             <span className="material-symbols-outlined text-[14px]">home_work</span> 1. Imóvel Base
                         </label>
-                        <select 
+                        <select
                             className="w-full h-11 rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#1a1d23] text-sm focus:ring-primary focus:border-primary"
                             value={selectedPropertyId}
                             onChange={(e) => setSelectedPropertyId(e.target.value)}
@@ -347,14 +347,14 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                             <span className="material-symbols-outlined text-[14px]">aspect_ratio</span> 2. Formato
                         </label>
                         <div className="flex gap-2 p-1 bg-slate-100 dark:bg-[#1a1d23] rounded-xl">
-                            <button 
+                            <button
                                 onClick={() => setFormat('story')}
                                 className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex flex-col items-center gap-1 transition-all ${format === 'story' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <span className="material-symbols-outlined text-[18px]">smartphone</span>
                                 Story (9:16)
                             </button>
-                            <button 
+                            <button
                                 onClick={() => setFormat('feed')}
                                 className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex flex-col items-center gap-1 transition-all ${format === 'feed' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
@@ -394,7 +394,7 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                             <span className="material-symbols-outlined text-[14px]">psychology</span> 4. Inteligência Artificial
                         </label>
-                        
+
                         <div className="flex gap-2 mb-2">
                             {['viral', 'professional', 'urgent'].map(t => (
                                 <button
@@ -407,7 +407,7 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                             ))}
                         </div>
 
-                        <button 
+                        <button
                             onClick={handleGenerate}
                             disabled={isGenerating}
                             className="w-full py-4 bg-gradient-to-r from-primary to-indigo-600 hover:from-indigo-600 hover:to-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/25 transition-all flex justify-center items-center gap-2 active:scale-95 disabled:opacity-70 group"
@@ -432,12 +432,12 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                     flex-1 bg-slate-100 dark:bg-[#0b0e14] relative flex-col items-center justify-center p-4 lg:p-8 overflow-hidden lg:flex
                     ${activeMobileTab === 'preview' ? 'flex' : 'hidden'}
                 `}>
-                    
+
                     {/* Background decoration */}
                     <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:20px_20px]"></div>
 
                     {/* Mobile Simulator Frame */}
-                    <div 
+                    <div
                         className={`
                             relative bg-black rounded-[2.5rem] border-[8px] border-slate-800 shadow-2xl overflow-hidden transition-all duration-500 flex flex-col shrink-0
                             ${format === 'story' ? 'w-full max-w-[360px] aspect-[9/16]' : 'w-full max-w-[400px] aspect-square'}
@@ -455,18 +455,18 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                         </div>
 
                         {/* --- THE ARTWORK (This is what is generated/shared) --- */}
-                        <div 
-                            ref={artboardRef} 
+                        <div
+                            ref={artboardRef}
                             className="relative w-full h-full bg-slate-900 group overflow-hidden"
                         >
                             {/* Background Real Image with crossOrigin for capture */}
-                            <img 
-                                crossOrigin="anonymous" 
-                                src={displayImage} 
-                                className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" 
+                            <img
+                                crossOrigin="anonymous"
+                                src={displayImage}
+                                className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
                                 alt="Propriedade"
                             />
-                            
+
                             {/* Overlay System (The "Marketing" Magic) */}
                             {renderImageOverlay()}
 
@@ -488,7 +488,7 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                             </div>
                         )}
                     </div>
-                    
+
                     <p className="mt-4 text-xs text-slate-400 font-medium">Preview em tempo real • {format === 'story' ? '9:16' : '1:1'}</p>
                 </div>
 
@@ -498,20 +498,20 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                     flex-col p-6 gap-6 z-10 shadow-xl h-full overflow-y-auto lg:flex
                     ${activeMobileTab === 'result' ? 'flex' : 'hidden'}
                 `}>
-                    
+
                     <div className="space-y-4">
                         <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
                             <span className="material-symbols-outlined text-green-600">chat</span> Legenda Gerada
                         </h3>
-                        
+
                         <div className="relative">
-                            <textarea 
+                            <textarea
                                 className="w-full h-40 bg-slate-50 dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-sm text-slate-700 dark:text-slate-300 resize-none focus:ring-primary focus:border-primary custom-scrollbar leading-relaxed"
                                 value={generatedCaption}
                                 onChange={(e) => setGeneratedCaption(e.target.value)}
                                 placeholder="A legenda gerada pela IA aparecerá aqui..."
                             />
-                            <button 
+                            <button
                                 onClick={handleCopy}
                                 className="absolute bottom-3 right-3 p-2 bg-white dark:bg-slate-700 rounded-lg shadow-sm border border-slate-200 dark:border-slate-600 text-slate-500 hover:text-primary transition-colors"
                                 title="Copiar texto"
@@ -525,7 +525,7 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                         <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
                             <span className="material-symbols-outlined text-blue-600">rocket_launch</span> Publicar
                         </h3>
-                        
+
                         <button onClick={handleShare} className="w-full flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-[#1a1d23] hover:bg-slate-100 border border-slate-200 dark:border-slate-700 transition-colors group">
                             <div className="flex items-center gap-3">
                                 <div className="size-10 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center group-hover:bg-green-500 group-hover:text-white transition-colors">
@@ -539,8 +539,8 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                             <span className="material-symbols-outlined text-slate-400">chevron_right</span>
                         </button>
 
-                        <button 
-                            onClick={handleDownload} 
+                        <button
+                            onClick={handleDownload}
                             disabled={isDownloading}
                             className="w-full flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-[#1a1d23] hover:bg-slate-100 border border-slate-200 dark:border-slate-700 transition-colors group"
                         >
@@ -576,21 +576,21 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
 
             {/* Mobile Bottom Navigation */}
             <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#111318] border-t border-slate-200 dark:border-slate-800 flex justify-around items-center h-[60px] z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-                <button 
+                <button
                     onClick={() => setActiveMobileTab('setup')}
                     className={`flex flex-col items-center justify-center w-full h-full gap-1 ${activeMobileTab === 'setup' ? 'text-primary' : 'text-slate-400'}`}
                 >
                     <span className="material-symbols-outlined text-[24px]">tune</span>
                     <span className="text-[10px] font-bold">Configurar</span>
                 </button>
-                <button 
+                <button
                     onClick={() => setActiveMobileTab('preview')}
                     className={`flex flex-col items-center justify-center w-full h-full gap-1 ${activeMobileTab === 'preview' ? 'text-primary' : 'text-slate-400'}`}
                 >
                     <span className="material-symbols-outlined text-[24px]">visibility</span>
                     <span className="text-[10px] font-bold">Preview</span>
                 </button>
-                <button 
+                <button
                     onClick={() => setActiveMobileTab('result')}
                     className={`flex flex-col items-center justify-center w-full h-full gap-1 ${activeMobileTab === 'result' ? 'text-primary' : 'text-slate-400'} relative`}
                 >

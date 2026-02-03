@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+       // Regra padrão: Bloqueia tudo por segurança.
+       // Alterar para "allow read, write: if request.auth != null;" para permitir usuários logados.
+      allow read, write: if false;
+    }
+  }
+}

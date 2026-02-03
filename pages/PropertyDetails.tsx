@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { User } from '../App';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { User, Property } from '../src/types';
+import ImageGallery from '../components/ImageGallery';
 
 // --- Interface de Dados ---
 interface PropertyData {
@@ -128,18 +129,47 @@ const propertiesDB: PropertyData[] = [
 
 interface PropertyDetailsProps {
     propertyId?: number | string | null;
+    properties?: Property[]; // Adicionado para dados reais
     onBack?: () => void;
     isPublic?: boolean;
     onChatStart?: (propertyTitle: string) => void;
     currentUser?: User | null;
 }
 
-const PropertyDetails: React.FC<PropertyDetailsProps> = ({ propertyId, onBack, isPublic = false, onChatStart, currentUser }) => {
+const PropertyDetails: React.FC<PropertyDetailsProps> = ({ propertyId, properties = [], onBack, isPublic = false, onChatStart, currentUser }) => {
     const propertyData = useMemo(() => {
-        if (!propertyId) return propertiesDB[propertiesDB.length - 1];
-        const found = propertiesDB.find(p => p.id === propertyId);
+        // 1. Tentar encontrar nos dados reais do Firebase
+        const realProperty = properties.find(p => String(p.id) === String(propertyId));
+
+        if (realProperty) {
+            // Mapear interface Property para PropertyData esperada pelo componente
+            return {
+                id: realProperty.id,
+                title: realProperty.title,
+                address: realProperty.addressDetails?.street || realProperty.location.split(',')[0],
+                city: realProperty.addressDetails?.city || realProperty.location.split(',')[1]?.trim() || 'São Paulo, SP',
+                price: typeof realProperty.price === 'string' ? parseInt(realProperty.price.replace(/\D/g, '')) : realProperty.price,
+                condoFee: 0,
+                tax: 0,
+                description: realProperty.description || "Sem descrição disponível.",
+                specs: {
+                    bedrooms: realProperty.beds || 0,
+                    bathrooms: realProperty.baths || 0,
+                    area: realProperty.area || 0,
+                    parking: 1, // Default
+                    year: 2024
+                },
+                amenities: realProperty.amenities || [],
+                images: realProperty.images && realProperty.images.length > 0 ? realProperty.images : [realProperty.image],
+                agency: AGENCY_DATA,
+                coords: { lat: -23.5505, lng: -46.6333 }
+            } as PropertyData;
+        }
+
+        // 2. Fallback para o mock local
+        const found = propertiesDB.find(p => String(p.id) === String(propertyId));
         return found || propertiesDB[propertiesDB.length - 1];
-    }, [propertyId]);
+    }, [propertyId, properties]);
 
     const [activeTab, setActiveTab] = useState<'photos' | 'video' | 'tour' | 'floorplan'>('photos');
     const [showRealMap, setShowRealMap] = useState(false);
@@ -280,7 +310,7 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ propertyId, onBack, i
                 </div>
             </header>
 
-            <main className="flex-grow w-full max-w-[1280px] mx-auto px-4 lg:px-8 py-6">
+            <main className="flex-grow w-full max-w-[1280px] mx-auto px-4 lg:px-8 py-6 pb-32 md:pb-6">
                 {/* Breadcrumbs */}
                 <div className="flex flex-wrap gap-2 items-center mb-4 text-sm">
                     <button onClick={onBack} className="text-slate-500 hover:text-primary font-medium transition-colors">Imóveis</button>
@@ -347,32 +377,47 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ propertyId, onBack, i
                 {/* Gallery / Media Content */}
                 <div className="mb-8 h-[400px] md:h-[500px] bg-slate-100 rounded-2xl overflow-hidden relative shadow-md">
                     {activeTab === 'photos' && (
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 h-full p-0 md:p-0">
-                            <div
-                                onClick={() => openLightbox(0)}
-                                className="md:col-span-2 md:row-span-2 relative group overflow-hidden cursor-pointer h-full"
-                            >
-                                <div className="w-full h-full bg-center bg-cover transition-transform duration-700 group-hover:scale-105" style={{ backgroundImage: `url("${propertyData.images[0]}")` }}></div>
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
-                            </div>
-                            {propertyData.images.slice(1, 5).map((img, idx) => (
-                                <div
-                                    key={idx}
-                                    onClick={() => openLightbox(idx + 1)}
-                                    className="relative group overflow-hidden cursor-pointer h-full hidden md:block"
-                                >
-                                    <div className="w-full h-full bg-center bg-cover transition-transform duration-700 group-hover:scale-110" style={{ backgroundImage: `url("${img}")` }}></div>
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
-
-                                    {idx === 3 && idx === propertyData.images.slice(1, 5).length - 1 && (
-                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center group-hover:bg-black/60 transition-colors">
-                                            <span className="text-white font-bold text-lg flex items-center gap-2">
-                                                <span className="material-symbols-outlined notranslate">grid_view</span> Ver todas
-                                            </span>
-                                        </div>
-                                    )}
+                        <div className="h-full relative group">
+                            {/* --- MOBILE: SWIPE GALLERY --- */}
+                            <div className="md:hidden flex h-full overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth remove-scroll-visual">
+                                {propertyData.images.map((img, idx) => (
+                                    <div key={idx} className="flex-shrink-0 w-full h-full snap-center relative">
+                                        <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url("${img}")` }}></div>
+                                    </div>
+                                ))}
+                                <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur text-white text-xs px-3 py-1 rounded-full font-bold">
+                                    {propertyData.images.length} Fotos
                                 </div>
-                            ))}
+                            </div>
+
+                            {/* --- DESKTOP: GRID GALLERY --- */}
+                            <div className="hidden md:grid grid-cols-4 gap-3 h-full p-0">
+                                <div
+                                    onClick={() => openLightbox(0)}
+                                    className="col-span-2 row-span-2 relative group overflow-hidden cursor-pointer h-full rounded-l-xl"
+                                >
+                                    <div className="w-full h-full bg-center bg-cover transition-transform duration-700 group-hover:scale-105" style={{ backgroundImage: `url("${propertyData.images[0]}")` }}></div>
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+                                </div>
+                                {propertyData.images.slice(1, 5).map((img, idx) => (
+                                    <div
+                                        key={idx}
+                                        onClick={() => openLightbox(idx + 1)}
+                                        className="relative group overflow-hidden cursor-pointer h-full"
+                                    >
+                                        <div className="w-full h-full bg-center bg-cover transition-transform duration-700 group-hover:scale-110" style={{ backgroundImage: `url("${img}")` }}></div>
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+
+                                        {idx === 3 && idx === propertyData.images.slice(1, 5).length - 1 && (
+                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center group-hover:bg-black/60 transition-colors">
+                                                <span className="text-white font-bold text-lg flex items-center gap-2">
+                                                    <span className="material-symbols-outlined notranslate">grid_view</span> Ver todas
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                     {activeTab !== 'photos' && (
@@ -619,6 +664,20 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ propertyId, onBack, i
                 </div>
             </main>
 
+            {/* --- MOBILE STICKY ACTION BAR --- */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 z-50 flex items-center gap-3 safe-area-pb shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
+                <div className="flex-1">
+                    <p className="text-xs text-slate-500 font-bold uppercase">Preço de Venda</p>
+                    <p className="text-xl font-extrabold text-slate-900">R$ {propertyData.price.toLocaleString('pt-BR')}</p>
+                </div>
+                <button
+                    onClick={handleNegotiateClick}
+                    className="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/30 active:scale-95 transition-transform flex items-center gap-2"
+                >
+                    <span className="material-symbols-outlined notranslate text-[20px]">handshake</span> Negociar
+                </button>
+            </div>
+
             {/* Footer */}
             <footer className="mt-12 py-10 border-t border-slate-200 bg-white">
                 <div className="max-w-[1280px] mx-auto px-4 lg:px-8">
@@ -637,38 +696,13 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ propertyId, onBack, i
                 </div>
             </footer>
 
-            {/* Lightbox Overlay */}
+            {/* Lightbox Overlay (Substituído pela Galeria Avançada) */}
             {lightboxOpen && (
-                <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-200" onClick={closeLightbox}>
-                    <button className="absolute top-4 right-4 text-white hover:text-gray-300 z-50 p-2">
-                        <span className="material-symbols-outlined notranslate text-3xl">close</span>
-                    </button>
-
-                    <button
-                        className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/10 p-3 rounded-full transition-colors z-50 hidden md:block"
-                        onClick={prevImage}
-                    >
-                        <span className="material-symbols-outlined notranslate text-4xl">chevron_left</span>
-                    </button>
-
-                    <div className="max-w-[90vw] max-h-[90vh] relative" onClick={(e) => e.stopPropagation()}>
-                        <img
-                            src={propertyData.images[currentImageIndex]}
-                            alt={`Gallery ${currentImageIndex}`}
-                            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
-                        />
-                        <div className="absolute bottom-[-40px] left-0 right-0 text-center text-white text-sm font-medium">
-                            {currentImageIndex + 1} / {propertyData.images.length}
-                        </div>
-                    </div>
-
-                    <button
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/10 p-3 rounded-full transition-colors z-50 hidden md:block"
-                        onClick={nextImage}
-                    >
-                        <span className="material-symbols-outlined notranslate text-4xl">chevron_right</span>
-                    </button>
-                </div>
+                <ImageGallery
+                    images={propertyData.images}
+                    initialIndex={currentImageIndex}
+                    onClose={() => setLightboxOpen(false)}
+                />
             )}
 
             {/* Modal de Negociação */}

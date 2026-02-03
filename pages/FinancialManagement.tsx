@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Contract, Property, User } from '../App';
+import { Contract, Property, User } from '../src/types';
 
 interface FinancialManagementProps {
     contracts: Contract[];
@@ -12,7 +12,9 @@ interface FinancialManagementProps {
 const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, properties, users, onAddContract, onUpdateContract }) => {
     const [activeTab, setActiveTab] = useState<'rent' | 'sale'>('rent');
     const [isModalOpen, setIsModalOpen] = useState(false);
-    
+    const [layoutMode, setLayoutMode] = useState<'grid' | 'table'>('grid');
+    const [selectedIds, setSelectedIds] = useState<(number | string)[]>([]);
+
     // Form States
     const [newContractForm, setNewContractForm] = useState({
         propertyId: '',
@@ -49,7 +51,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
             const total = contract.installmentsTotal || 1;
             message = `Olá *${contract.clientName}*, referente à parcela *${currentInstallment}/${total}* do financiamento do imóvel *${contract.propertyTitle}*.\n\nValor: *R$ ${contract.value.toLocaleString('pt-BR')}*.\nVencimento: Dia *${contract.dueDay}/${new Date().getMonth() + 1}*.\n\nAtenciosamente, EstateFlow.`;
         }
-        
+
         const url = `https://wa.me/${contract.clientPhone}?text=${encodeURIComponent(message)}`;
         window.open(url, '_blank');
     };
@@ -57,9 +59,9 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
     const handleOwnerPayout = (contract: Contract) => {
         const payout = contract.value - (contract.value * contract.commissionRate / 100);
         const refText = contract.type === 'rent' ? 'aluguel' : `parcela ${(contract.installmentsPaid || 0)}/${contract.installmentsTotal || 1}`;
-        
+
         const message = `Olá *${contract.ownerName}*, confirmamos o recebimento do(a) ${refText} de *${contract.propertyTitle}*.\n\nO repasse de *R$ ${payout.toLocaleString('pt-BR')}* (descontada taxa de administração de ${contract.commissionRate}%) já foi programado.`;
-        
+
         const url = `https://wa.me/${contract.ownerPhone}?text=${encodeURIComponent(message)}`;
         window.open(url, '_blank');
     };
@@ -86,9 +88,50 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
         onUpdateContract(contract.id, updatedData);
     };
 
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            setSelectedIds(filteredContracts.map(c => c.id));
+        } else {
+            setSelectedIds([]);
+        }
+    };
+
+    const handleSelectOne = (id: number | string) => {
+        if (selectedIds.includes(id)) {
+            setSelectedIds(selectedIds.filter(i => i !== id));
+        } else {
+            setSelectedIds([...selectedIds, id]);
+        }
+    };
+
+    const handleBulkMarkPaid = () => {
+        if (!confirm(`Confirmar recebimento de ${selectedIds.length} pagamentos?`)) return;
+
+        selectedIds.forEach(id => {
+            const contract = contracts.find(c => c.id === id);
+            if (contract) {
+                const updatedData: Partial<Contract> = {
+                    nextPaymentStatus: 'paid',
+                    lastPaymentDate: new Date().toISOString().split('T')[0]
+                };
+                if (contract.type === 'sale' && contract.installmentsTotal) {
+                    const currentPaid = contract.installmentsPaid || 0;
+                    if (currentPaid < contract.installmentsTotal) {
+                        updatedData.installmentsPaid = currentPaid + 1;
+                        if (updatedData.installmentsPaid === contract.installmentsTotal) {
+                            updatedData.status = 'completed';
+                        }
+                    }
+                }
+                onUpdateContract(id, updatedData);
+            }
+        });
+        setSelectedIds([]);
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         const property = properties.find(p => p.id.toString() === newContractForm.propertyId);
         const client = users.find(u => u.id.toString() === newContractForm.clientId);
         const owner = users.find(u => u.id.toString() === newContractForm.ownerId);
@@ -129,7 +172,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
 
     return (
         <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display h-full flex flex-col overflow-hidden relative">
-            
+
             {/* Header */}
             <header className="flex-none bg-surface-light dark:bg-[#111318] border-b border-slate-200 dark:border-slate-800 px-6 py-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-[1600px] mx-auto">
@@ -138,19 +181,37 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
                         <p className="text-sm text-slate-500 dark:text-slate-400">Contratos, recebimentos e repasses.</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => setIsModalOpen(true)}
-                            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-primary/20 transition-all active:scale-95"
-                        >
-                            <span className="material-symbols-outlined text-[20px]">add_card</span> Novo Contrato
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center bg-slate-100 dark:bg-[#111318] rounded-lg p-1 border border-slate-200 dark:border-slate-800">
+                                <button
+                                    onClick={() => setLayoutMode('grid')}
+                                    className={`p-1.5 rounded-md transition-all ${layoutMode === 'grid' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-400 hover:text-slate-600'}`}
+                                    title="Visualização em Grade"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">grid_view</span>
+                                </button>
+                                <button
+                                    onClick={() => setLayoutMode('table')}
+                                    className={`p-1.5 rounded-md transition-all ${layoutMode === 'table' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-400 hover:text-slate-600'}`}
+                                    title="Visualização em Lista"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">table_rows</span>
+                                </button>
+                            </div>
+                            <button
+                                onClick={() => setIsModalOpen(true)}
+                                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-primary/20 transition-all active:scale-95"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">add_card</span> Novo Contrato
+                            </button>
+                        </div>
                     </div>
                 </div>
             </header>
 
             <main className="flex-1 overflow-y-auto p-6">
                 <div className="max-w-[1600px] mx-auto flex flex-col gap-8">
-                    
+
                     {/* Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="bg-white dark:bg-[#1a1d23] p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
@@ -184,13 +245,13 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
 
                     {/* Tabs */}
                     <div className="flex gap-4 border-b border-slate-200 dark:border-slate-800">
-                        <button 
+                        <button
                             onClick={() => setActiveTab('rent')}
                             className={`pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'rent' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
                             Aluguéis Ativos
                         </button>
-                        <button 
+                        <button
                             onClick={() => setActiveTab('sale')}
                             className={`pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'sale' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
@@ -198,16 +259,41 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
                         </button>
                     </div>
 
-                    {/* Contracts Grid */}
+                    {/* Bulk Actions Bar */}
+                    {selectedIds.length > 0 && (
+                        <div className="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between animate-in slide-in-from-top duration-200 shadow-lg sticky top-0 z-10">
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setSelectedIds([])} className="hover:bg-white/10 p-1 rounded-full"><span className="material-symbols-outlined">close</span></button>
+                                <span className="font-bold text-sm">{selectedIds.length} selecionados</span>
+                            </div>
+                            <button onClick={handleBulkMarkPaid} className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-xs font-bold transition-colors flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[16px]">check_circle</span> Baixar Pagamento (Todos)
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Contracts Grid/Table */}
                     {filteredContracts.length === 0 ? (
                         <div className="text-center py-20 text-slate-500 bg-white dark:bg-[#1a1d23] rounded-2xl border border-dashed border-slate-300">
                             <span className="material-symbols-outlined text-4xl mb-2">folder_off</span>
                             <p>Nenhum contrato encontrado nesta categoria.</p>
                         </div>
-                    ) : (
+                    ) : layoutMode === 'grid' ? (
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                             {filteredContracts.map(contract => (
-                                <div key={contract.id} className="bg-white dark:bg-[#1a1d23] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col md:flex-row">
+                                <div key={contract.id} className={`bg-white dark:bg-[#1a1d23] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col md:flex-row transition-all ${selectedIds.includes(contract.id) ? 'ring-2 ring-primary' : ''}`}>
+                                    {/* Selection Checkbox (Grid Mode) */}
+                                    {contract.nextPaymentStatus !== 'paid' && (
+                                        <div className="absolute top-4 left-4 z-10">
+                                            <input
+                                                type="checkbox"
+                                                className="size-5 rounded border-slate-300 text-primary focus:ring-primary shadow-sm"
+                                                checked={selectedIds.includes(contract.id)}
+                                                onChange={() => handleSelectOne(contract.id)}
+                                            />
+                                        </div>
+                                    )}
+
                                     {/* Imóvel Info */}
                                     <div className="w-full md:w-48 bg-slate-100 relative group">
                                         <img src={contract.propertyImage} className="w-full h-48 md:h-full object-cover transition-transform group-hover:scale-105 duration-700" alt={contract.propertyTitle} />
@@ -218,7 +304,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
 
                                     {/* Contract Details */}
                                     <div className="flex-1 p-5 flex flex-col justify-between gap-4">
-                                        <div className="flex justify-between items-start">
+                                        <div className="flex justify-between items-start pl-8 md:pl-0">
                                             <div className="flex items-center gap-2">
                                                 <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${contract.nextPaymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                                                     {contract.nextPaymentStatus === 'paid' ? 'Pago no Mês' : 'Pendente'}
@@ -236,8 +322,8 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
                                         {/* Progresso do Financiamento (Apenas Vendas) */}
                                         {contract.type === 'sale' && contract.installmentsTotal && (
                                             <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2.5 mt-1 relative overflow-hidden">
-                                                <div 
-                                                    className="bg-primary h-2.5 rounded-full" 
+                                                <div
+                                                    className="bg-primary h-2.5 rounded-full"
                                                     style={{ width: `${((contract.installmentsPaid || 0) / contract.installmentsTotal) * 100}%` }}
                                                 ></div>
                                                 <div className="absolute right-0 top-3 text-[10px] text-slate-500 font-bold">
@@ -279,32 +365,102 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
                                         </div>
 
                                         <div className="flex gap-2 mt-auto pt-2">
-                                            <button 
+                                            <button
                                                 onClick={() => handleWhatsAppCharge(contract)}
                                                 className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-green-500/20 active:scale-95"
                                             >
                                                 <span className="material-symbols-outlined text-[18px]">chat</span> Cobrar
                                             </button>
-                                            
+
                                             {contract.nextPaymentStatus === 'paid' ? (
-                                                <button 
+                                                <button
                                                     onClick={() => handleOwnerPayout(contract)}
                                                     className="flex-1 py-2 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors active:scale-95"
                                                 >
                                                     <span className="material-symbols-outlined text-[18px]">payments</span> Repassar
                                                 </button>
                                             ) : (
-                                                <button 
+                                                <button
                                                     onClick={() => handleMarkAsPaid(contract)}
                                                     className="flex-1 py-2 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors active:scale-95"
                                                 >
-                                                    <span className="material-symbols-outlined text-[18px]">check_circle</span> Baixar Pagamento
+                                                    <span className="material-symbols-outlined text-[18px]">check_circle</span> Baixar
                                                 </button>
                                             )}
                                         </div>
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    ) : (
+                        <div className="bg-white dark:bg-[#1a1d23] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#111318]">
+                                        <th className="p-4 w-12 text-center">
+                                            <input
+                                                type="checkbox"
+                                                className="rounded border-slate-300 text-primary focus:ring-primary"
+                                                checked={filteredContracts.length > 0 && selectedIds.length === filteredContracts.filter(c => c.nextPaymentStatus !== 'paid').length}
+                                                onChange={handleSelectAll}
+                                            />
+                                        </th>
+                                        <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wide">Imóvel</th>
+                                        <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wide">Financeiro</th>
+                                        <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wide hidden md:table-cell">Comissão</th>
+                                        <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wide">Status</th>
+                                        <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wide text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {filteredContracts.map(contract => (
+                                        <tr key={contract.id} className={`hover:bg-slate-50 dark:hover:bg-[#20242c] transition-colors ${selectedIds.includes(contract.id) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                                            <td className="p-4 text-center">
+                                                {contract.nextPaymentStatus !== 'paid' && (
+                                                    <input
+                                                        type="checkbox"
+                                                        className="rounded border-slate-300 text-primary focus:ring-primary"
+                                                        checked={selectedIds.includes(contract.id)}
+                                                        onChange={() => handleSelectOne(contract.id)}
+                                                    />
+                                                )}
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="font-bold text-sm text-slate-900 dark:text-white truncate max-w-[200px]">{contract.propertyTitle}</div>
+                                                <div className="text-xs text-slate-500 flex flex-col">
+                                                    <span>C: {contract.clientName}</span>
+                                                    <span>P: {contract.ownerName}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="font-bold text-sm text-slate-900 dark:text-white">R$ {contract.value.toLocaleString('pt-BR')}</div>
+                                                <div className="text-xs text-slate-500">Vence dia {contract.dueDay}</div>
+                                            </td>
+                                            <td className="p-4 hidden md:table-cell">
+                                                <div className="text-xs text-emerald-600 font-bold">+ R$ {(contract.value * contract.commissionRate / 100).toLocaleString('pt-BR')}</div>
+                                                <div className="text-[10px] text-slate-400">{contract.commissionRate}% Taxa</div>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${contract.nextPaymentStatus === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                                    {contract.nextPaymentStatus === 'paid' ? 'Pago' : 'Pendente'}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <button onClick={() => handleWhatsAppCharge(contract)} className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-slate-500 hover:text-green-600 transition-colors" title="Cobrar WhatsApp">
+                                                        <span className="material-symbols-outlined text-[18px]">chat</span>
+                                                    </button>
+                                                    {contract.nextPaymentStatus !== 'paid' && (
+                                                        <button onClick={() => handleMarkAsPaid(contract)} className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-primary transition-colors" title="Baixar Pagamento">
+                                                            <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>
@@ -314,23 +470,23 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-[#1a1d23] w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-                        <button 
+                        <button
                             onClick={() => setIsModalOpen(false)}
                             className="absolute top-4 right-4 p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
                         >
                             <span className="material-symbols-outlined">close</span>
                         </button>
-                        
+
                         <h2 className="text-xl font-bold mb-6 text-slate-900 dark:text-white">Registrar Novo Contrato</h2>
-                        
+
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-500 uppercase">Tipo de Contrato</label>
-                                    <select 
+                                    <select
                                         className="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#111318]"
                                         value={newContractForm.type}
-                                        onChange={e => setNewContractForm({...newContractForm, type: e.target.value})}
+                                        onChange={e => setNewContractForm({ ...newContractForm, type: e.target.value })}
                                     >
                                         <option value="rent">Aluguel</option>
                                         <option value="sale">Venda / Financiamento</option>
@@ -338,14 +494,14 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-500 uppercase">Imóvel</label>
-                                    <select 
+                                    <select
                                         required
                                         className="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#111318]"
                                         value={newContractForm.propertyId}
                                         onChange={e => {
                                             const prop = properties.find(p => p.id.toString() === e.target.value);
                                             setNewContractForm({
-                                                ...newContractForm, 
+                                                ...newContractForm,
                                                 propertyId: e.target.value,
                                                 ownerId: prop?.ownerId?.toString() || '' // Auto-select owner if possible
                                             })
@@ -362,11 +518,11 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-500 uppercase">Cliente (Pagador)</label>
-                                    <select 
+                                    <select
                                         required
                                         className="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#111318]"
                                         value={newContractForm.clientId}
-                                        onChange={e => setNewContractForm({...newContractForm, clientId: e.target.value})}
+                                        onChange={e => setNewContractForm({ ...newContractForm, clientId: e.target.value })}
                                     >
                                         <option value="">Selecione o Cliente...</option>
                                         {users.filter(u => u.role === 'client').map(u => (
@@ -376,11 +532,11 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-500 uppercase">Proprietário (Recebedor)</label>
-                                    <select 
+                                    <select
                                         required
                                         className="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#111318]"
                                         value={newContractForm.ownerId}
-                                        onChange={e => setNewContractForm({...newContractForm, ownerId: e.target.value})}
+                                        onChange={e => setNewContractForm({ ...newContractForm, ownerId: e.target.value })}
                                     >
                                         <option value="">Selecione o Proprietário...</option>
                                         {users.filter(u => u.role === 'owner' || u.role === 'admin').map(u => (
@@ -395,36 +551,36 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="space-y-1 col-span-2">
                                     <label className="text-xs font-bold text-slate-500 uppercase">Valor Mensal / Parcela (R$)</label>
-                                    <input 
-                                        type="number" 
+                                    <input
+                                        type="number"
                                         required
                                         className="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#111318]"
                                         placeholder="0.00"
                                         value={newContractForm.value}
-                                        onChange={e => setNewContractForm({...newContractForm, value: e.target.value})}
+                                        onChange={e => setNewContractForm({ ...newContractForm, value: e.target.value })}
                                     />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-500 uppercase">Taxa Adm (%)</label>
-                                    <input 
-                                        type="number" 
+                                    <input
+                                        type="number"
                                         required
                                         className="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#111318]"
                                         placeholder="10"
                                         value={newContractForm.commission}
-                                        onChange={e => setNewContractForm({...newContractForm, commission: e.target.value})}
+                                        onChange={e => setNewContractForm({ ...newContractForm, commission: e.target.value })}
                                     />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-500 uppercase">Dia Vencimento</label>
-                                    <input 
-                                        type="number" 
+                                    <input
+                                        type="number"
                                         required
                                         max="31"
                                         className="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#111318]"
                                         placeholder="05"
                                         value={newContractForm.dueDay}
-                                        onChange={e => setNewContractForm({...newContractForm, dueDay: e.target.value})}
+                                        onChange={e => setNewContractForm({ ...newContractForm, dueDay: e.target.value })}
                                     />
                                 </div>
                             </div>
@@ -433,12 +589,12 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
                             {newContractForm.type === 'sale' && (
                                 <div className="space-y-1 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800">
                                     <label className="text-xs font-bold text-blue-700 dark:text-blue-300 uppercase">Número de Parcelas (Financiamento)</label>
-                                    <input 
-                                        type="number" 
+                                    <input
+                                        type="number"
                                         className="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111318]"
                                         placeholder="Ex: 60, 120..."
                                         value={newContractForm.installmentsTotal}
-                                        onChange={e => setNewContractForm({...newContractForm, installmentsTotal: e.target.value})}
+                                        onChange={e => setNewContractForm({ ...newContractForm, installmentsTotal: e.target.value })}
                                     />
                                     <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-1">Deixe em branco se for venda à vista.</p>
                                 </div>
@@ -446,12 +602,12 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({ contracts, pr
 
                             <div className="space-y-1">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Data de Início</label>
-                                <input 
-                                    type="date" 
+                                <input
+                                    type="date"
                                     required
                                     className="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#111318]"
                                     value={newContractForm.startDate}
-                                    onChange={e => setNewContractForm({...newContractForm, startDate: e.target.value})}
+                                    onChange={e => setNewContractForm({ ...newContractForm, startDate: e.target.value })}
                                 />
                             </div>
 

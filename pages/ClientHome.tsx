@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { User, Property } from '../App';
+import { User, Property } from '../src/types';
 
 interface ClientHomeProps {
     properties: Property[];
@@ -33,6 +33,14 @@ const ClientHome: React.FC<ClientHomeProps> = ({
     // --- Estados de Filtro ---
     const [selectedCategory, setSelectedCategory] = useState('Todos');
     const [searchText, setSearchText] = useState('');
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+    const [filters, setFilters] = useState({
+        minPrice: '',
+        maxPrice: '',
+        beds: 'any',
+        baths: 'any',
+        purpose: 'any' // 'sale', 'rent' or 'any'
+    });
 
     // --- Lógica de Filtragem ---
     const filteredProperties = useMemo(() => {
@@ -57,12 +65,20 @@ const ClientHome: React.FC<ClientHomeProps> = ({
                 }
             }
 
-            return matchText && matchCategory;
+            // 3. Filtros Avançados
+            const numericPrice = parseInt(property.price.replace(/\D/g, '')) || 0;
+            const matchMinPrice = !filters.minPrice || numericPrice >= parseInt(filters.minPrice);
+            const matchMaxPrice = !filters.maxPrice || numericPrice <= parseInt(filters.maxPrice);
+            const matchBeds = filters.beds === 'any' || property.beds >= parseInt(filters.beds);
+            const matchBaths = filters.baths === 'any' || property.baths >= parseInt(filters.baths);
+            const matchPurpose = filters.purpose === 'any' || property.purpose === filters.purpose;
+
+            return matchText && matchCategory && matchMinPrice && matchMaxPrice && matchBeds && matchBaths && matchPurpose;
         });
-    }, [searchText, selectedCategory, properties]);
+    }, [searchText, selectedCategory, properties, filters]);
 
     return (
-        <div className="min-h-screen bg-[#F8F9FC] flex flex-col font-display selection:bg-primary/20 selection:text-primary">
+        <div className="min-h-screen bg-[#F8F9FC] flex flex-col font-display selection:bg-primary/20 selection:text-primary pb-20 md:pb-0">
 
             {/* Styles for Animations & Patterns */}
             <style>{`
@@ -104,10 +120,10 @@ const ClientHome: React.FC<ClientHomeProps> = ({
                         <span className="text-lg font-bold text-white tracking-wide drop-shadow-md">EstateFlow</span>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="hidden md:flex items-center gap-4">
                         <button
                             onClick={onAdvertiseClick}
-                            className="hidden md:flex text-white/90 font-semibold text-sm hover:text-white transition-colors px-4 py-2 hover:bg-white/10 rounded-full"
+                            className="text-white/90 font-semibold text-sm hover:text-white transition-colors px-4 py-2 hover:bg-white/10 rounded-full"
                         >
                             Anunciar Imóvel
                         </button>
@@ -159,23 +175,89 @@ const ClientHome: React.FC<ClientHomeProps> = ({
                             <span className="text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-200 to-slate-400">da sua nova vida.</span>
                         </h1>
 
-                        <div className="w-full max-w-3xl mt-8 animate-in fade-in zoom-in duration-1000 delay-500">
-                            <div className="p-2 bg-white/5 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 ring-1 ring-white/10">
-                                <div className="flex-1 flex items-center px-6 h-14 bg-white/95 rounded-xl shadow-sm transition-all focus-within:ring-2 focus-within:ring-slate-900/10">
-                                    <span className="material-symbols-outlined notranslate text-slate-400 text-2xl mr-3">search</span>
-                                    <input
-                                        className="w-full bg-transparent border-none focus:ring-0 text-slate-800 font-medium placeholder:text-slate-400 text-base"
-                                        placeholder="Qual bairro, cidade ou condomínio?"
-                                        value={searchText}
-                                        onChange={(e) => setSearchText(e.target.value)}
-                                    />
+                        <div className="w-full max-w-4xl mt-8 animate-in fade-in zoom-in duration-1000 delay-500">
+                            <div className="p-3 bg-white/5 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl flex flex-col gap-3 ring-1 ring-white/10">
+                                <div className="flex flex-col md:flex-row gap-2">
+                                    <div className="flex-1 flex items-center px-6 h-16 bg-white rounded-2xl shadow-sm transition-all focus-within:ring-2 focus-within:ring-slate-900/10">
+                                        <span className="material-symbols-outlined notranslate text-slate-400 text-2xl mr-3">search</span>
+                                        <input
+                                            className="w-full bg-transparent border-none focus:ring-0 text-slate-800 font-medium placeholder:text-slate-400 text-lg"
+                                            placeholder="Qual bairro, cidade ou condomínio?"
+                                            value={searchText}
+                                            onChange={(e) => setSearchText(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                                            className={`h-16 px-6 rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-2 border shadow-sm ${showAdvancedFilters ? 'bg-primary/10 border-primary text-primary' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                        >
+                                            <span className="material-symbols-outlined notranslate">{showAdvancedFilters ? 'close' : 'filter_list'}</span>
+                                            {showAdvancedFilters ? 'Fechar' : 'Filtros'}
+                                        </button>
+                                        <button
+                                            onClick={() => document.getElementById('listings-grid')?.scrollIntoView({ behavior: 'smooth' })}
+                                            className="h-16 px-10 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-lg shadow-xl transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                                        >
+                                            Buscar
+                                        </button>
+                                    </div>
                                 </div>
-                                <button
-                                    onClick={() => document.getElementById('listings-grid')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="h-14 px-8 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-base shadow-xl transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
-                                >
-                                    Buscar Imóveis
-                                </button>
+
+                                {/* Advanced Filters Panel */}
+                                {showAdvancedFilters && (
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-white/95 rounded-2xl animate-in slide-in-from-top-4 duration-300">
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Finalidade</label>
+                                            <select
+                                                className="h-11 rounded-xl border-slate-200 text-sm font-semibold text-slate-700 bg-slate-50 focus:ring-primary focus:border-primary"
+                                                value={filters.purpose}
+                                                onChange={(e) => setFilters({ ...filters, purpose: e.target.value })}
+                                            >
+                                                <option value="any">Qualquer</option>
+                                                <option value="sale">Venda</option>
+                                                <option value="rent">Aluguel</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Preço Máximo</label>
+                                            <input
+                                                type="number"
+                                                placeholder="Até R$"
+                                                className="h-11 rounded-xl border-slate-200 text-sm font-semibold text-slate-700 bg-slate-50 focus:ring-primary focus:border-primary"
+                                                value={filters.maxPrice}
+                                                onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Quartos</label>
+                                            <select
+                                                className="h-11 rounded-xl border-slate-200 text-sm font-semibold text-slate-700 bg-slate-50 focus:ring-primary focus:border-primary"
+                                                value={filters.beds}
+                                                onChange={(e) => setFilters({ ...filters, beds: e.target.value })}
+                                            >
+                                                <option value="any">Todos</option>
+                                                <option value="1">1+</option>
+                                                <option value="2">2+</option>
+                                                <option value="3">3+</option>
+                                                <option value="4">4+</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Banheiros</label>
+                                            <select
+                                                className="h-11 rounded-xl border-slate-200 text-sm font-semibold text-slate-700 bg-slate-50 focus:ring-primary focus:border-primary"
+                                                value={filters.baths}
+                                                onChange={(e) => setFilters({ ...filters, baths: e.target.value })}
+                                            >
+                                                <option value="any">Todos</option>
+                                                <option value="1">1+</option>
+                                                <option value="2">2+</option>
+                                                <option value="3">3+</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -218,9 +300,14 @@ const ClientHome: React.FC<ClientHomeProps> = ({
                             <p className="text-slate-500 text-sm mt-1">{filteredProperties.length} imóveis encontrados na sua região.</p>
                         </div>
 
-                        {(searchText || selectedCategory !== 'Todos') && (
+                        {(searchText || selectedCategory !== 'Todos' || filters.minPrice || filters.maxPrice || filters.beds !== 'any' || filters.baths !== 'any' || filters.purpose !== 'any') && (
                             <button
-                                onClick={() => { setSearchText(''); setSelectedCategory('Todos'); }}
+                                onClick={() => {
+                                    setSearchText('');
+                                    setSelectedCategory('Todos');
+                                    setFilters({ minPrice: '', maxPrice: '', beds: 'any', baths: 'any', purpose: 'any' });
+                                    setShowAdvancedFilters(false);
+                                }}
                                 className="text-rose-500 text-xs font-bold hover:bg-rose-50 px-4 py-2 rounded-lg transition-colors border border-transparent hover:border-rose-100"
                             >
                                 Limpar Filtros
@@ -256,9 +343,13 @@ const ClientHome: React.FC<ClientHomeProps> = ({
 
                                         <button
                                             onClick={(e) => { e.stopPropagation(); onFavoriteClick(property.id); }}
-                                            className="absolute top-4 right-4 size-10 bg-white/20 hover:bg-white backdrop-blur-md rounded-full flex items-center justify-center text-white hover:text-rose-500 transition-all shadow-sm group-hover:scale-110"
+                                            className={`absolute top-4 right-4 size-10 backdrop-blur-md rounded-full flex items-center justify-center transition-all shadow-sm group-hover:scale-110 
+                                            ${currentUser?.favorites?.includes(String(property.id))
+                                                    ? 'bg-rose-500 text-white'
+                                                    : 'bg-white/20 hover:bg-white text-white hover:text-rose-500'
+                                                }`}
                                         >
-                                            <span className="material-symbols-outlined notranslate text-[20px]">favorite</span>
+                                            <span className={`material-symbols-outlined notranslate text-[20px] ${currentUser?.favorites?.includes(String(property.id)) ? 'fill-current' : ''}`}>favorite</span>
                                         </button>
 
                                         <div className="absolute bottom-4 left-4 text-white">
@@ -267,7 +358,7 @@ const ClientHome: React.FC<ClientHomeProps> = ({
                                     </div>
 
                                     {/* Conteúdo */}
-                                    <div className="p-6 flex flex-col flex-1">
+                                    < div className="p-6 flex flex-col flex-1" >
                                         <div className="mb-4">
                                             <h4 className="font-bold text-slate-800 text-lg leading-snug mb-1 line-clamp-1 group-hover:text-primary transition-colors">{property.title}</h4>
                                             <p className="text-slate-500 text-sm flex items-center gap-1 truncate font-medium">
@@ -319,13 +410,14 @@ const ClientHome: React.FC<ClientHomeProps> = ({
                                 Ver Todos os Imóveis
                             </button>
                         </div>
-                    )}
-                </section>
+                    )
+                    }
+                </section >
 
                 {/* --- FOOTER CTA (Dark Elegance) --- */}
-                <section className="bg-[#0b0e14] text-white py-24 px-6 relative overflow-hidden">
+                < section className="bg-[#0b0e14] text-white py-24 px-6 relative overflow-hidden" >
                     {/* Abstract Shapes */}
-                    <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[150px] translate-x-1/3 -translate-y-1/3 pointer-events-none"></div>
+                    < div className="absolute top-0 right-0 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[150px] translate-x-1/3 -translate-y-1/3 pointer-events-none" ></div >
                     <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-indigo-600/5 rounded-full blur-[150px] -translate-x-1/3 translate-y-1/3 pointer-events-none"></div>
 
                     <div className="max-w-4xl mx-auto text-center relative z-10">
@@ -347,8 +439,8 @@ const ClientHome: React.FC<ClientHomeProps> = ({
                             </button>
                         </div>
                     </div>
-                </section>
-            </main>
+                </section >
+            </main >
 
             <footer className="bg-white border-t border-slate-100 py-12 px-6">
                 <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
@@ -379,7 +471,48 @@ const ClientHome: React.FC<ClientHomeProps> = ({
                     </div>
                 </div>
             </footer>
-        </div>
+            {/* --- MOBILE BOTTOM NAV --- */}
+            <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-slate-200 py-3 px-8 md:hidden flex justify-between items-center shadow-2xl safe-area-pb">
+                <button
+                    onClick={() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        setSelectedCategory('Todos');
+                    }}
+                    className={`flex flex-col items-center gap-1 transition-colors ${selectedCategory === 'Todos' ? 'text-primary' : 'text-slate-400'}`}
+                >
+                    <span className={`material-symbols-outlined ${selectedCategory === 'Todos' ? 'fill-current' : ''}`}>home</span>
+                    <span className="text-[10px] font-bold">Início</span>
+                </button>
+
+                <button
+                    onClick={() => document.getElementById('listings-grid')?.scrollIntoView({ behavior: 'smooth' })}
+                    className="flex flex-col items-center gap-1 text-slate-400 hover:text-primary transition-colors"
+                >
+                    <span className="material-symbols-outlined">search</span>
+                    <span className="text-[10px] font-bold">Buscar</span>
+                </button>
+
+                <button
+                    onClick={onAdvertiseClick}
+                    className="flex flex-col items-center gap-1 text-slate-400 hover:text-primary transition-colors"
+                >
+                    <span className="material-symbols-outlined">add_circle</span>
+                    <span className="text-[10px] font-bold">Anunciar</span>
+                </button>
+
+                <button
+                    onClick={currentUser ? onUserDashboardClick : onLoginClick}
+                    className={`flex flex-col items-center gap-1 transition-colors ${currentUser ? 'text-primary' : 'text-slate-400'}`}
+                >
+                    {currentUser ? (
+                        <div className="size-6 rounded-full bg-slate-200 bg-cover bg-center border border-current" style={{ backgroundImage: `url("${currentUser.avatar}")` }}></div>
+                    ) : (
+                        <span className="material-symbols-outlined">person</span>
+                    )}
+                    <span className="text-[10px] font-bold">{currentUser ? 'Perfil' : 'Entrar'}</span>
+                </button>
+            </nav>
+        </div >
     );
 };
 

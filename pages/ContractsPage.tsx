@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Contract, Property, User } from '../App';
+import { Contract, Property, User } from '../src/types';
+import { addContract, deleteContract, updateContract } from '../src/services/dataService';
+import { generateContractPDF } from '../src/services/pdfService';
 
 // --- Dados da Imobiliária (Fixo para o Cabeçalho) ---
 const AGENCY_INFO = {
@@ -117,7 +119,9 @@ interface ContractsPageProps {
 const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, users, onAddContract, onDeleteContract, onUpdateContract }) => {
     // --- States ---
     const [viewMode, setViewMode] = useState<'list' | 'create' | 'view'>('list');
+    const [layoutMode, setLayoutMode] = useState<'grid' | 'table'>('grid');
     const [filter, setFilter] = useState<'all' | 'expiring' | 'rent' | 'sale'>('all');
+    const [selectedIds, setSelectedIds] = useState<(number | string)[]>([]);
 
     // Create Mode States
     const [selectedTemplate, setSelectedTemplate] = useState<keyof typeof CONTRACT_TEMPLATES>('rent_residential');
@@ -217,6 +221,28 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
         }
     };
 
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            setSelectedIds(filteredContracts.map(c => c.id));
+        } else {
+            setSelectedIds([]);
+        }
+    };
+
+    const handleSelectOne = (id: number | string) => {
+        if (selectedIds.includes(id)) {
+            setSelectedIds(selectedIds.filter(i => i !== id));
+        } else {
+            setSelectedIds([...selectedIds, id]);
+        }
+    };
+
+    const handleBulkDelete = () => {
+        if (!confirm(`Tem certeza que deseja excluir ${selectedIds.length} contratos?`)) return;
+        selectedIds.forEach(id => onDeleteContract(id));
+        setSelectedIds([]);
+    };
+
     const generateDocumentBody = (contract: Contract) => {
         const template = CONTRACT_TEMPLATES[contract.templateType || 'rent_residential'];
         if (!template) return "Template não encontrado.";
@@ -269,15 +295,21 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
         setViewMode('view');
     };
 
-    const handlePrint = () => {
-        const printContent = document.getElementById('printable-area');
-        if (printContent) {
-            const originalContents = document.body.innerHTML;
-            document.body.innerHTML = printContent.innerHTML;
-            window.print();
-            document.body.innerHTML = originalContents;
-            window.location.reload();
+    const handleDownloadPDF = (contract: Contract) => {
+        const property = properties.find(p => p.id === contract.propertyId);
+        const tenant = users.find(u => u.id === contract.clientId);
+        const owner = users.find(u => u.id === contract.ownerId);
+
+        if (!property || !tenant || !owner) {
+            alert('Dados incompletos para gerar o PDF. Verifique se o imóvel, cliente e proprietário estão cadastrados.');
+            return;
         }
+
+        generateContractPDF(contract, property, tenant, owner);
+    };
+
+    const handlePrint = () => {
+        window.print();
     };
 
     const handleSaveEdit = () => {
@@ -299,9 +331,49 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
 
     return (
         <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display h-full flex flex-col overflow-hidden relative">
+            <style>{`
+                @media print {
+                    body * { visibility: hidden; }
+                    #printable-area, #printable-area * { visibility: visible; }
+                    #printable-area { 
+                        position: absolute; 
+                        left: 0; 
+                        top: 0; 
+                        width: 100%;
+                        background: white !important;
+                    }
+                    .no-print { display: none !important; }
+                    @page { margin: 0; size: A4; }
+                }
+                .contract-page {
+                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+                    transition: transform 0.3s ease;
+                    transform-origin: top center;
+                }
+                .contract-page:hover {
+                    transform: translateY(-5px);
+                }
+                @media (max-width: 1024px) {
+                    .contract-preview-wrapper {
+                        padding: 1rem !important;
+                    }
+                    .contract-page {
+                        zoom: 0.4; /* Fallback simples para mobile */
+                        transform: scale(0.4);
+                        margin-bottom: -150mm !important; /* Compensa o espaço vazio do scale */
+                    }
+                }
+                @media (max-width: 640px) {
+                    .contract-page {
+                        zoom: 0.3;
+                        transform: scale(0.3);
+                        margin-bottom: -200mm !important;
+                    }
+                }
+            `}</style>
 
             {/* Header */}
-            <header className="flex-none bg-surface-light dark:bg-[#111318] border-b border-slate-200 dark:border-slate-800 px-6 py-4">
+            <header className="flex-none bg-surface-light dark:bg-[#111318] border-b border-slate-200 dark:border-slate-800 px-6 py-4 no-print">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-[1600px] mx-auto">
                     <div>
                         <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -311,12 +383,30 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                     </div>
                     <div className="flex gap-3">
                         {viewMode === 'list' ? (
-                            <button
-                                onClick={() => setViewMode('create')}
-                                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-primary/20 transition-all active:scale-95"
-                            >
-                                <span className="material-symbols-outlined text-[20px]">add_circle</span> Novo Contrato
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center bg-slate-100 dark:bg-[#111318] rounded-lg p-1 border border-slate-200 dark:border-slate-800">
+                                    <button
+                                        onClick={() => setLayoutMode('grid')}
+                                        className={`p-1.5 rounded-md transition-all ${layoutMode === 'grid' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-400 hover:text-slate-600'}`}
+                                        title="Visualização em Grade"
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">grid_view</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setLayoutMode('table')}
+                                        className={`p-1.5 rounded-md transition-all ${layoutMode === 'table' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-400 hover:text-slate-600'}`}
+                                        title="Visualização em Lista"
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">table_rows</span>
+                                    </button>
+                                </div>
+                                <button
+                                    onClick={() => setViewMode('create')}
+                                    className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-primary/20 transition-all active:scale-95"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">add_circle</span> Novo Contrato
+                                </button>
+                            </div>
                         ) : (
                             <button
                                 onClick={() => setViewMode('list')}
@@ -391,65 +481,166 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                                 ))}
                             </div>
 
-                            {/* Grid */}
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pb-10">
-                                {filteredContracts.map(contract => {
-                                    const daysLeft = calculateDaysLeft(contract.endDate);
-                                    const isExpiring = daysLeft <= 30 && daysLeft >= 0;
+                            {/* Bulk Actions Bar */}
+                            {selectedIds.length > 0 && (
+                                <div className="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between animate-in slide-in-from-top duration-200 mb-4 shadow-lg sticky top-0 z-10">
+                                    <div className="flex items-center gap-4">
+                                        <button onClick={() => setSelectedIds([])} className="hover:bg-white/10 p-1 rounded-full"><span className="material-symbols-outlined">close</span></button>
+                                        <span className="font-bold text-sm">{selectedIds.length} selecionados</span>
+                                    </div>
+                                    <button onClick={handleBulkDelete} className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded text-xs font-bold transition-colors flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[16px]">delete</span> Excluir Selecionados
+                                    </button>
+                                </div>
+                            )}
 
-                                    return (
-                                        <div key={contract.id} className="bg-white dark:bg-[#1a1d23] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col gap-4 relative overflow-hidden group hover:border-primary/50 transition-all">
-                                            {isExpiring && <div className="absolute top-0 right-0 bg-amber-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">VENCE EM {daysLeft} DIAS</div>}
+                            {/* Content Area */}
+                            {layoutMode === 'grid' ? (
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pb-10">
+                                    {filteredContracts.map(contract => {
+                                        const daysLeft = calculateDaysLeft(contract.endDate);
+                                        const isExpiring = daysLeft <= 30 && daysLeft >= 0;
 
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="size-12 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-primary border border-slate-200 dark:border-slate-700">
-                                                        <span className="material-symbols-outlined text-[24px]">gavel</span>
+                                        return (
+                                            <div key={contract.id} className={`bg-white dark:bg-[#1a1d23] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col gap-4 relative overflow-hidden group hover:border-primary/50 transition-all ${selectedIds.includes(contract.id) ? 'ring-2 ring-primary' : ''}`}>
+                                                {isExpiring && <div className="absolute top-0 right-0 bg-amber-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">VENCE EM {daysLeft} DIAS</div>}
+
+                                                {/* Selection Checkbox (Grid Mode) */}
+                                                <div className="absolute top-4 left-4 z-10">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="size-5 rounded border-slate-300 text-primary focus:ring-primary shadow-sm"
+                                                        checked={selectedIds.includes(contract.id)}
+                                                        onChange={() => handleSelectOne(contract.id)}
+                                                    />
+                                                </div>
+
+                                                <div className="flex justify-between items-start pl-8">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="size-12 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-primary border border-slate-200 dark:border-slate-700">
+                                                            <span className="material-symbols-outlined text-[24px]">gavel</span>
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-bold text-slate-900 dark:text-white leading-tight text-lg">{contract.propertyTitle}</h3>
+                                                            <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                                                {CONTRACT_TEMPLATES[contract.templateType || 'rent_residential']?.title || 'Contrato'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${contract.signatureStatus === 'signed' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                                            {contract.signatureStatus === 'signed' ? 'Assinado' : 'Pendente'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                                                    <div>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Cliente</p>
+                                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">{contract.clientName}</p>
                                                     </div>
                                                     <div>
-                                                        <h3 className="font-bold text-slate-900 dark:text-white leading-tight text-lg">{contract.propertyTitle}</h3>
-                                                        <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                                            {CONTRACT_TEMPLATES[contract.templateType || 'rent_residential']?.title || 'Contrato'}
-                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Proprietário</p>
+                                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">{contract.ownerName}</p>
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${contract.signatureStatus === 'signed' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                                                        {contract.signatureStatus === 'signed' ? 'Assinado' : 'Pendente'}
-                                                    </span>
-                                                </div>
-                                            </div>
 
-                                            <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700/50">
-                                                <div>
-                                                    <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Cliente</p>
-                                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">{contract.clientName}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Proprietário</p>
-                                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">{contract.ownerName}</p>
+                                                <div className="flex gap-3 mt-auto pt-2">
+                                                    <button
+                                                        onClick={() => handleViewContract(contract)}
+                                                        className="flex-1 py-2.5 bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-black/5 active:scale-95"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[18px]">print</span> Visualizar Documento
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDownloadPDF(contract)}
+                                                        className="px-4 py-2.5 border border-primary text-primary hover:bg-primary hover:text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-bold text-sm"
+                                                        title="Baixar PDF"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[18px]">download</span> PDF
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(contract.id)}
+                                                        className="px-3 border border-slate-200 dark:border-slate-700 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-400 rounded-lg transition-colors flex items-center justify-center"
+                                                        title="Excluir Contrato"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px]">delete</span>
+                                                    </button>
                                                 </div>
                                             </div>
-
-                                            <div className="flex gap-3 mt-auto pt-2">
-                                                <button
-                                                    onClick={() => handleViewContract(contract)}
-                                                    className="flex-1 py-2.5 bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-black/5 active:scale-95"
-                                                >
-                                                    <span className="material-symbols-outlined text-[18px]">print</span> Visualizar Documento
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(contract.id)}
-                                                    className="px-3 border border-slate-200 dark:border-slate-700 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-400 rounded-lg transition-colors flex items-center justify-center"
-                                                    title="Excluir Contrato"
-                                                >
-                                                    <span className="material-symbols-outlined text-[20px]">delete</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="bg-white dark:bg-[#1a1d23] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#111318]">
+                                                <th className="p-4 w-12 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="rounded border-slate-300 text-primary focus:ring-primary"
+                                                        checked={filteredContracts.length > 0 && selectedIds.length === filteredContracts.length}
+                                                        onChange={handleSelectAll}
+                                                    />
+                                                </th>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wide">Imóvel / Tipo</th>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Partes</th>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wide hidden md:table-cell">Validade</th>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wide">Status</th>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wide text-right">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {filteredContracts.map(contract => (
+                                                <tr key={contract.id} className={`hover:bg-slate-50 dark:hover:bg-[#20242c] transition-colors group ${selectedIds.includes(contract.id) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                                                    <td className="p-4 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="rounded border-slate-300 text-primary focus:ring-primary"
+                                                            checked={selectedIds.includes(contract.id)}
+                                                            onChange={() => handleSelectOne(contract.id)}
+                                                        />
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className="font-bold text-sm text-slate-900 dark:text-white truncate">{contract.propertyTitle}</div>
+                                                        <div className="text-xs text-slate-500 truncate max-w-[200px]">{CONTRACT_TEMPLATES[contract.templateType || 'rent_residential']?.title}</div>
+                                                    </td>
+                                                    <td className="p-4 hidden sm:table-cell">
+                                                        <div className="flex flex-col text-xs">
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">C: {contract.clientName}</span>
+                                                            <span className="text-slate-500">P: {contract.ownerName}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 hidden md:table-cell">
+                                                        <div className="text-xs text-slate-500">
+                                                            {new Date(contract.startDate).toLocaleDateString('pt-BR')} - {contract.endDate ? new Date(contract.endDate).toLocaleDateString('pt-BR') : 'Indeterminado'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${contract.signatureStatus === 'signed' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                                            {contract.signatureStatus === 'signed' ? 'Assinado' : 'Pendente'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-right">
+                                                        <div className="flex justify-end gap-2">
+                                                            <button onClick={() => handleViewContract(contract)} className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-primary transition-colors" title="Visualizar">
+                                                                <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                            </button>
+                                                            <button onClick={() => handleDownloadPDF(contract)} className="p-1.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-slate-500 hover:text-blue-600 transition-colors" title="Baixar PDF">
+                                                                <span className="material-symbols-outlined text-[18px]">download</span>
+                                                            </button>
+                                                            <button onClick={() => handleDelete(contract.id)} className="p-1.5 rounded hover:bg-rose-100 dark:hover:bg-rose-900/30 text-slate-500 hover:text-rose-500 transition-colors" title="Excluir">
+                                                                <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </>
                     )}
 
@@ -591,10 +782,10 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                     {viewMode === 'view' && viewingContract && (
                         <div className="flex flex-col lg:flex-row gap-8 h-full min-h-0">
                             {/* Document Preview (A4 Simulado) - Scrollable */}
-                            <div className="flex-1 rounded-2xl p-4 lg:p-8 overflow-y-auto flex justify-center bg-slate-200/50 dark:bg-black/20 custom-scrollbar">
+                            <div className="flex-1 rounded-2xl p-4 lg:p-8 overflow-y-auto flex justify-center bg-slate-200/50 dark:bg-black/20 custom-scrollbar contract-preview-wrapper">
 
                                 {/* A4 Container Logic */}
-                                <div id="printable-area" className="flex flex-col gap-8 print:block">
+                                <div id="printable-area" className="flex flex-col gap-8 print:block w-full items-center">
                                     {isEditingText ? (
                                         // MODO EDIÇÃO: Página Única Expansível
                                         <div className="bg-white text-black w-[210mm] min-h-[297mm] shadow-2xl relative mx-auto flex flex-col print:shadow-none">
@@ -614,12 +805,11 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                                             </div>
                                         </div>
                                     ) : (
-                                        // MODO VISUALIZAÇÃO: Paginação Automática
+                                        // MODO VISUALIZAÇÃO: Paginação Automática Refinada
                                         (() => {
-                                            // Lógica de Paginação Refinada
-                                            // Reduzimos drasticamente os limites para evitar estouro visual
-                                            const CHARS_PER_PAGE = 2100; // Limite seguro para página cheia
-                                            const CHARS_FIRST_PAGE = 1450; // Limite reduzido devido ao cabeçalho grande
+                                            // Lógica de Paginação Protegida
+                                            const CHARS_PER_PAGE = 3200; // Aumentado para preencher melhor o A4
+                                            const CHARS_FIRST_PAGE = 2200; // Aumentado (cabeçalho ocupa ~1000)
 
                                             const paragraphs = currentText.split('\n');
                                             const pages: string[] = [];
@@ -627,53 +817,58 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                                             let currentCount = 0;
 
                                             paragraphs.forEach((para) => {
-                                                // Custo estimado: tamanho do texto + 'peso' para quebras de linha/espaçamento
-                                                // Parágrafos curtos ocupam espaço vertical desproporcional ao nº de caracteres
-                                                const paraCost = para.length + (para.length < 50 ? 50 : 10);
-
+                                                // Adiciona custo proporcional ao tamanho real
+                                                const effectiveLength = para.trim().length === 0 ? 50 : para.length + 30;
                                                 const limit = pages.length === 0 ? CHARS_FIRST_PAGE : CHARS_PER_PAGE;
 
-                                                if (currentCount + paraCost > limit && currentPageContent.length > 0) {
-                                                    pages.push(currentPageContent);
+                                                if (currentCount + effectiveLength > limit && currentPageContent.length > 0) {
+                                                    pages.push(currentPageContent.trim());
                                                     currentPageContent = para + '\n';
-                                                    currentCount = paraCost;
+                                                    currentCount = effectiveLength;
                                                 } else {
                                                     currentPageContent += para + '\n';
-                                                    currentCount += paraCost;
+                                                    currentCount += effectiveLength;
                                                 }
                                             });
-                                            if (currentPageContent) pages.push(currentPageContent);
+
+                                            if (currentPageContent.trim()) {
+                                                pages.push(currentPageContent.trim());
+                                            }
 
                                             return pages.map((pageContent, idx) => (
                                                 <div
                                                     key={idx}
-                                                    className="bg-white text-black w-[210mm] h-[297mm] shadow-2xl relative mx-auto flex flex-col break-after-page print:break-after-page print:shadow-none print:mb-0 mb-8 last:mb-0 overflow-hidden"
+                                                    className="bg-white text-black w-[210mm] h-[297mm] min-h-[297mm] shrink-0 shadow-2xl relative mx-auto flex flex-col break-after-page print:break-after-page print:shadow-none print:mb-0 mb-10 last:mb-0 overflow-hidden select-none contract-page"
+                                                    style={{ pageBreakAfter: 'always' }}
                                                 >
-
-                                                    {/* Header apenas na primeira página */}
+                                                    {/* Header */}
                                                     {idx === 0 ? (
-                                                        <div className="h-[40mm] px-[20mm] flex items-center border-b-2 border-slate-800 mt-[15mm] shrink-0">
-                                                            <img src={AGENCY_INFO.logo} className="h-[25mm] object-contain mr-6" alt="Logo" />
+                                                        <div className="h-[45mm] px-[25mm] flex items-center border-b-2 border-slate-900 mt-[15mm] shrink-0">
+                                                            <img src={AGENCY_INFO.logo} className="h-[28mm] object-contain mr-8" alt="Logo" />
                                                             <div className="flex-1 text-right">
-                                                                <h2 className="text-xl font-bold text-slate-900 uppercase tracking-wide">{AGENCY_INFO.name}</h2>
-                                                                <p className="text-xs text-slate-600 mt-1">CNPJ: {AGENCY_INFO.cnpj} | CRECI: {AGENCY_INFO.creci}</p>
-                                                                <p className="text-xs text-slate-600">{AGENCY_INFO.address}</p>
-                                                                <p className="text-xs text-slate-600">{AGENCY_INFO.email} | {AGENCY_INFO.phone}</p>
+                                                                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">{AGENCY_INFO.name}</h2>
+                                                                <p className="text-[10px] text-slate-500 mt-2 font-sans tracking-wide">
+                                                                    CNPJ: {AGENCY_INFO.cnpj} • CRECI: {AGENCY_INFO.creci}<br />
+                                                                    {AGENCY_INFO.address}<br />
+                                                                    {AGENCY_INFO.phone} • {AGENCY_INFO.email}
+                                                                </p>
                                                             </div>
                                                         </div>
                                                     ) : (
-                                                        // Margem superior para páginas seguintes
-                                                        <div className="h-[25mm] w-full shrink-0"></div>
+                                                        <div className="h-[25mm] w-full shrink-0 border-b border-slate-100 mb-8 flex items-end px-[25mm] pb-2">
+                                                            <span className="text-[9px] uppercase tracking-widest text-slate-300 font-bold">{viewingContract.propertyTitle} — Contrato #{viewingContract.id.toString().slice(-4)}</span>
+                                                        </div>
                                                     )}
 
-                                                    <div className="flex-1 px-[25mm] py-[10mm] flex flex-col min-h-0">
+                                                    {/* Content Container */}
+                                                    <div className="flex-1 px-[25mm] py-[5mm] flex flex-col min-h-0 overflow-hidden">
                                                         {idx === 0 && (
-                                                            <h1 className="text-center font-bold text-lg uppercase mb-8 border-b border-slate-300 pb-2 shrink-0">
+                                                            <h1 className="text-center font-bold text-xl uppercase mb-10 border-b-4 border-double border-slate-900 pb-4 shrink-0">
                                                                 {CONTRACT_TEMPLATES[viewingContract.templateType || 'rent_residential']?.title}
                                                             </h1>
                                                         )}
 
-                                                        <div className="text-justify text-[11pt] leading-relaxed font-serif whitespace-pre-wrap">
+                                                        <div className="text-justify text-[10.5pt] leading-[1.6] font-serif whitespace-pre-wrap text-slate-800 flex-1">
                                                             {pageContent}
                                                         </div>
 
@@ -755,7 +950,7 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                                                     onClick={handlePrint}
                                                     className="w-full py-3 bg-slate-900 dark:bg-white dark:text-slate-900 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
                                                 >
-                                                    <span className="material-symbols-outlined">print</span> Imprimir / PDF
+                                                    <span className="material-symbols-outlined">print</span> Imprimir Documento
                                                 </button>
 
                                                 {viewingContract.signatureStatus !== 'signed' && (
