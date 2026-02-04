@@ -778,6 +778,10 @@ const App: React.FC = () => {
         />
       )}
       <WhatsAppButton phoneNumber="5515997241175" />
+      {/* Teste de Sincronização */}
+      <div className="fixed bottom-4 left-4 z-[100] bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg opacity-80 pointer-events-none">
+        v1.0.1 - SYNC ACTIVE
+      </div>
       {isLegalChatOpen && activeLegalContract && (
         <LegalChat
           contract={activeLegalContract}
