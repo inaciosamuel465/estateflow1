@@ -7,9 +7,10 @@ interface UserDashboardProps {
     properties: Property[];
     onPropertySelect: (id: number | string) => void;
     onLogout: () => void;
+    onEditProfile?: () => void;
 }
 
-const UserDashboard: React.FC<UserDashboardProps> = ({ user, onBack, properties, onPropertySelect, onLogout }) => {
+const UserDashboard: React.FC<UserDashboardProps> = ({ user, onBack, properties, onPropertySelect, onLogout, onEditProfile }) => {
     const [activeTab, setActiveTab] = useState<'profile' | 'favorites' | 'listings'>('profile');
 
     // Filtrar imóveis do proprietário (se for owner)
@@ -83,6 +84,13 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onBack, properties,
                                         <span className="material-symbols-outlined">real_estate_agent</span> Imóveis
                                     </button>
                                 )}
+
+                                <button
+                                    onClick={onLogout}
+                                    className="flex items-center lg:mt-4 gap-3 px-4 py-3 rounded-xl text-sm font-bold text-rose-500 hover:bg-rose-50 transition-all whitespace-nowrap"
+                                >
+                                    <span className="material-symbols-outlined">logout</span> Sair
+                                </button>
                             </nav>
                         </div>
                     </div>
@@ -114,7 +122,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onBack, properties,
                                         </div>
                                     </div>
                                     <div className="pt-4 border-t border-slate-100 flex justify-end">
-                                        <button className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 transition-colors">
+                                        <button
+                                            onClick={onEditProfile}
+                                            className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm hover:bg-slate-800 transition-colors"
+                                        >
                                             Editar Perfil
                                         </button>
                                     </div>
@@ -203,8 +214,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onBack, properties,
                         )}
                     </div>
                 </div>
-            </main>
-        </div>
+            </main >
+        </div >
     );
 };
 

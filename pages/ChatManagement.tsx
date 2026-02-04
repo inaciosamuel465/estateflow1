@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Conversation, ChatMessage } from '../App';
+import { Conversation, ChatMessage } from '../src/types';
 
 interface ChatManagementProps {
     conversations: Conversation[];
@@ -14,9 +14,10 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMe
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Filter conversations
-    const filteredConversations = conversations.filter(c => 
-        c.userName.toLowerCase().includes(searchText.toLowerCase())
-    );
+    const filteredConversations = conversations.filter(c => {
+        const userName = c.userName || '';
+        return userName.toLowerCase().includes(searchText.toLowerCase());
+    });
 
     const activeConversation = conversations.find(c => c.id === selectedConversationId);
 
@@ -38,13 +39,13 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMe
     const handleSend = (e: React.FormEvent) => {
         e.preventDefault();
         if (!replyText.trim() || !activeConversation) return;
-        
+
         onSendMessage(replyText, 'agent', activeConversation.userId);
         setReplyText('');
     };
 
     const getRoleBadge = (role: string) => {
-        switch(role) {
+        switch (role) {
             case 'owner': return 'bg-purple-100 text-purple-700';
             case 'client': return 'bg-blue-100 text-blue-700';
             default: return 'bg-amber-100 text-amber-700';
@@ -54,7 +55,7 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMe
     return (
         // Alterado de h-screen para h-full para respeitar o layout pai
         <div className="flex h-full bg-slate-100 dark:bg-background-dark overflow-hidden font-display relative">
-            
+
             {/* --- LEFT SIDEBAR (List) --- */}
             {/* Responsividade: Oculta em mobile se houver conversa selecionada */}
             <div className={`
@@ -77,9 +78,9 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMe
                 <div className="p-3 border-b border-slate-100 dark:border-slate-800">
                     <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
-                        <input 
-                            type="text" 
-                            placeholder="Buscar conversa..." 
+                        <input
+                            type="text"
+                            placeholder="Buscar conversa..."
                             className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary text-slate-900 dark:text-white"
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
@@ -90,7 +91,7 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMe
                 {/* Conversation List */}
                 <div className="flex-1 overflow-y-auto">
                     {filteredConversations.map(conv => (
-                        <div 
+                        <div
                             key={conv.id}
                             onClick={() => setSelectedConversationId(conv.id)}
                             className={`flex items-center gap-3 p-4 cursor-pointer transition-colors border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 ${selectedConversationId === conv.id ? 'bg-blue-50 dark:bg-blue-900/10 border-l-4 border-l-primary' : ''}`}
@@ -128,7 +129,7 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMe
                         <div className="flex-none h-16 bg-white dark:bg-[#1a1d23] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 shadow-sm z-10">
                             <div className="flex items-center gap-3">
                                 {/* Botão Voltar Mobile */}
-                                <button 
+                                <button
                                     onClick={() => setSelectedConversationId(null)}
                                     className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
                                 >
@@ -165,8 +166,8 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMe
                                     <div key={msg.id} className={`flex ${isAgent ? 'justify-end' : 'justify-start'} group`}>
                                         <div className={`
                                             max-w-[85%] md:max-w-[70%] p-3 rounded-xl shadow-sm text-sm relative
-                                            ${isAgent 
-                                                ? 'bg-primary text-white rounded-tr-none' 
+                                            ${isAgent
+                                                ? 'bg-primary text-white rounded-tr-none'
                                                 : 'bg-white dark:bg-[#1a1d23] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-tl-none'}
                                         `}>
                                             <p className="whitespace-pre-line leading-relaxed">{msg.text}</p>
@@ -189,14 +190,14 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMe
                                 <button type="button" className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                                     <span className="material-symbols-outlined text-[24px]">attach_file</span>
                                 </button>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary text-slate-900 dark:text-white placeholder:text-slate-400"
                                     placeholder="Digite sua mensagem..."
                                     value={replyText}
                                     onChange={(e) => setReplyText(e.target.value)}
                                 />
-                                <button 
+                                <button
                                     type="submit"
                                     disabled={!replyText.trim()}
                                     className="p-3 bg-primary text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 transition-colors shadow-lg shadow-primary/20"

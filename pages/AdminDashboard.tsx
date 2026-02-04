@@ -149,16 +149,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* Área de Conteúdo Principal */}
       <div className="flex flex-1 flex-col overflow-y-auto bg-slate-50 dark:bg-background-dark">
-        {/* Cabeçalho Mobile */}
-        <div className="lg:hidden flex items-center justify-between p-4 bg-white dark:bg-[#111318] border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">domain</span>
-            <span className="font-bold">EstateAI</span>
-          </div>
-          <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
-            <span className="material-symbols-outlined">menu</span>
-          </button>
-        </div>
 
         <main className="flex-1 p-4 md:p-8 max-w-[1600px] mx-auto w-full flex flex-col gap-8">
           {/* Seção de Cabeçalho */}
@@ -492,9 +482,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <td className="p-4 font-mono text-slate-500">{row.time}</td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${row.type === 'contract' ? 'bg-purple-100 text-purple-700' :
-                          row.type === 'lead' ? 'bg-amber-100 text-amber-700' :
-                            row.type === 'financial' ? 'bg-emerald-100 text-emerald-700' :
-                              'bg-blue-100 text-blue-700'
+                        row.type === 'lead' ? 'bg-amber-100 text-amber-700' :
+                          row.type === 'financial' ? 'bg-emerald-100 text-emerald-700' :
+                            'bg-blue-100 text-blue-700'
                         }`}>
                         {row.type}
                       </span>

@@ -32,8 +32,10 @@ const ListingsManagement: React.FC<ListingsManagementProps> = ({
     }, [properties, currentUser]);
 
     const filteredListings = myListings.filter(item => {
-        const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.location.toLowerCase().includes(searchTerm.toLowerCase());
+        const title = item.title || '';
+        const location = item.location || '';
+        const matchesSearch = title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            location.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesStatus = filterStatus === 'all' || (item.status || 'active') === filterStatus;
         return matchesSearch && matchesStatus;
     });

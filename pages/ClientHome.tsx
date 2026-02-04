@@ -8,6 +8,7 @@ interface ClientHomeProps {
     onAdvertiseClick: () => void;
     currentUser: User | null;
     onUserDashboardClick: () => void;
+    onLogoutClick?: () => void;
     onFavoriteClick: (id: number | string) => void;
     onChatClick: (title: string) => void;
 }
@@ -27,6 +28,7 @@ const ClientHome: React.FC<ClientHomeProps> = ({
     onAdvertiseClick,
     currentUser,
     onUserDashboardClick,
+    onLogoutClick,
     onFavoriteClick,
     onChatClick
 }) => {
@@ -51,26 +53,30 @@ const ClientHome: React.FC<ClientHomeProps> = ({
             }
 
             // 1. Filtro de Texto (Hero Search)
+            const title = property.title || '';
+            const location = property.location || '';
             const matchText = searchText === '' ||
-                property.title.toLowerCase().includes(searchText.toLowerCase()) ||
-                property.location.toLowerCase().includes(searchText.toLowerCase());
+                title.toLowerCase().includes(searchText.toLowerCase()) ||
+                location.toLowerCase().includes(searchText.toLowerCase());
 
             // 2. Filtro de Categoria (Visual Buttons)
             let matchCategory = true;
             if (selectedCategory !== 'Todos') {
                 if (selectedCategory === 'Luxo') {
-                    matchCategory = property.tag === 'Luxo' || property.price.includes('M') || parseInt(property.price.replace(/\D/g, '')) > 1000000;
+                    const priceStr = property.price || '';
+                    matchCategory = property.tag === 'Luxo' || priceStr.includes('M') || parseInt(priceStr.replace(/\D/g, '')) > 1000000;
                 } else {
                     matchCategory = property.type === selectedCategory;
                 }
             }
 
             // 3. Filtros Avançados
-            const numericPrice = parseInt(property.price.replace(/\D/g, '')) || 0;
+            const priceStr = property.price || '';
+            const numericPrice = parseInt(priceStr.replace(/\D/g, '')) || 0;
             const matchMinPrice = !filters.minPrice || numericPrice >= parseInt(filters.minPrice);
             const matchMaxPrice = !filters.maxPrice || numericPrice <= parseInt(filters.maxPrice);
-            const matchBeds = filters.beds === 'any' || property.beds >= parseInt(filters.beds);
-            const matchBaths = filters.baths === 'any' || property.baths >= parseInt(filters.baths);
+            const matchBeds = filters.beds === 'any' || (property.beds || 0) >= parseInt(filters.beds);
+            const matchBaths = filters.baths === 'any' || (property.baths || 0) >= parseInt(filters.baths);
             const matchPurpose = filters.purpose === 'any' || property.purpose === filters.purpose;
 
             return matchText && matchCategory && matchMinPrice && matchMaxPrice && matchBeds && matchBaths && matchPurpose;
@@ -129,13 +135,26 @@ const ClientHome: React.FC<ClientHomeProps> = ({
                         </button>
 
                         {currentUser ? (
-                            <button
-                                onClick={onUserDashboardClick}
-                                className="flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md transition-all border border-white/20 text-white group"
-                            >
-                                <div className="size-8 rounded-full bg-slate-300 bg-cover bg-center ring-2 ring-white/20 group-hover:ring-white/50 transition-all" style={{ backgroundImage: `url("${currentUser.avatar}")` }}></div>
-                                <span className="text-sm font-semibold max-w-[100px] truncate">{currentUser.name.split(' ')[0]}</span>
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={onUserDashboardClick}
+                                    className="flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md transition-all border border-white/20 text-white group"
+                                >
+                                    <div className="size-8 rounded-full bg-slate-300 bg-cover bg-center ring-2 ring-white/20 group-hover:ring-white/50 transition-all" style={{ backgroundImage: `url("${currentUser.avatar}")` }}></div>
+                                    <span className="text-sm font-semibold max-w-[100px] truncate">{currentUser.name.split(' ')[0]}</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm('Tem certeza que deseja sair?')) {
+                                            if (onLogoutClick) onLogoutClick();
+                                        }
+                                    }}
+                                    className="p-2 text-white/60 hover:text-rose-400 transition-colors"
+                                    title="Sair"
+                                >
+                                    <span className="material-symbols-outlined notranslate">logout</span>
+                                </button>
+                            </div>
                         ) : (
                             <button
                                 onClick={onLoginClick}

@@ -45,6 +45,10 @@ import ClientHome from './pages/ClientHome';
 import ClientChat from './pages/ClientChat';
 import OwnerLanding from './pages/OwnerLanding';
 import UserDashboard from './pages/UserDashboard';
+import ProfileSettings from './pages/ProfileSettings';
+import {
+  updateUser
+} from './src/services/dataService';
 import {
   createContractNotification,
   createPropertyNotification,
@@ -112,6 +116,7 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState('home');
   const [selectedPropertyId, setSelectedPropertyId] = useState<number | string | null>(null);
   const [propertyToEdit, setPropertyToEdit] = useState<Property | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // --- Check for expiring contracts ---
   useEffect(() => {
@@ -261,6 +266,15 @@ const App: React.FC = () => {
     setCurrentUser(null);
     setCurrentView('home');
     setIsClientChatOpen(false);
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleUpdateUser = async (updatedData: Partial<User>) => {
+    if (!currentUser) return;
+    const success = await updateUser(String(currentUser.id), updatedData);
+    if (success) {
+      setCurrentUser(prev => prev ? { ...prev, ...updatedData } : null);
+    }
   };
 
   // --- Handlers de Navegação e Ações ---
@@ -445,14 +459,66 @@ const App: React.FC = () => {
         case 'ai': return <ImageStudio />;
         case 'simulation': return <AreaSimulation />;
         case 'analytics': return <Analytics />;
+        case 'profile-settings': return (
+          <ProfileSettings
+            user={currentUser}
+            onSave={handleUpdateUser}
+            onBack={() => setCurrentView('dashboard')}
+          />
+        );
         default: return <AdminDashboard onNavigate={setCurrentView} />;
       }
     };
 
     return (
       <div className="flex h-screen w-full overflow-hidden bg-background-light dark:bg-background-dark">
-        {/* Menu Lateral Admin */}
-        <div className="w-16 md:w-20 flex flex-col items-center py-6 bg-white dark:bg-[#0b0e14] border-r border-slate-200 dark:border-slate-800 z-50 shrink-0">
+        {/* Mobile Header (Admin) */}
+        <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-[#0b0e14] border-b border-slate-200 dark:border-slate-800 z-[60] flex items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary">roofing</span>
+            <span className="font-bold text-slate-800 dark:text-white">EstateFlow</span>
+          </div>
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+          >
+            <span className="material-symbols-outlined">{isMobileMenuOpen ? 'close' : 'menu'}</span>
+          </button>
+        </div>
+
+        {/* Mobile Menu Overlay/Drawer (Admin) */}
+        {isMobileMenuOpen && (
+          <div className="lg:hidden fixed inset-0 z-[55] bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="absolute top-16 right-0 bottom-0 w-64 bg-white dark:bg-[#0b0e14] shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+                <div className="size-10 rounded-full bg-cover bg-center border border-slate-200" style={{ backgroundImage: `url("${currentUser.avatar}")` }}></div>
+                <div>
+                  <p className="font-bold text-sm text-slate-900 dark:text-white">{currentUser.name}</p>
+                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">{currentUser.role}</p>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+                <MobileAdminNavButton active={currentView === 'dashboard'} onClick={() => { setCurrentView('dashboard'); setIsMobileMenuOpen(false); }} icon="dashboard" label="Dashboard" />
+                <MobileAdminNavButton active={currentView === 'all-listings'} onClick={() => { setCurrentView('all-listings'); setIsMobileMenuOpen(false); }} icon="inventory_2" label="Imóveis" />
+                <MobileAdminNavButton active={currentView === 'contracts'} onClick={() => { setCurrentView('contracts'); setIsMobileMenuOpen(false); }} icon="gavel" label="Contratos" />
+                <MobileAdminNavButton active={currentView === 'chat'} onClick={() => { setCurrentView('chat'); setIsMobileMenuOpen(false); }} icon="chat" label="Mensagens" />
+                <MobileAdminNavButton active={currentView === 'profile-settings'} onClick={() => { setCurrentView('profile-settings'); setIsMobileMenuOpen(false); }} icon="settings" label="Minha Conta" />
+              </div>
+              <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:bg-rose-50 rounded-xl transition-all font-bold text-sm"
+                >
+                  <span className="material-symbols-outlined">logout</span>
+                  Sair do Sistema
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Menu Lateral Admin (Desktop) */}
+        <div className="hidden lg:flex w-20 flex-col items-center py-6 bg-white dark:bg-[#0b0e14] border-r border-slate-200 dark:border-slate-800 z-50 shrink-0">
           <div className="mb-4 p-2 bg-primary/20 rounded-xl text-primary" title="EstateFlow Suite">
             <span className="material-symbols-outlined notranslate text-2xl">roofing</span>
           </div>
@@ -473,14 +539,9 @@ const App: React.FC = () => {
             <NavButton active={currentView === 'all-listings' || currentView === 'edit-listing'} onClick={() => setCurrentView('all-listings')} icon="inventory_2" tooltip="Meus Anúncios" />
             <NavButton active={currentView === 'contracts'} onClick={() => setCurrentView('contracts')} icon="gavel" tooltip="Gestão Jurídica & Contratos" />
             <NavButton active={currentView === 'chat'} onClick={() => setCurrentView('chat')} icon="chat" tooltip="Chat & Atendimento" />
-            <NavButton active={currentView === 'financial'} onClick={() => setCurrentView('financial')} icon="payments" tooltip="Financeiro" />
+            <NavButton active={currentView === 'profile-settings'} onClick={() => setCurrentView('profile-settings')} icon="settings" tooltip="Configurações da Conta" />
             <NavButton active={currentView === 'marketing'} onClick={() => setCurrentView('marketing')} icon="campaign" tooltip="Marketing Studio" />
-            <NavButton active={currentView === 'listing'} onClick={() => setCurrentView('listing')} icon="add_business" tooltip="Novo Anúncio" />
-            <NavButton active={currentView === 'map'} onClick={() => setCurrentView('map')} icon="map" tooltip="Mapa Interativo" />
-            <NavButton active={currentView === 'crm'} onClick={() => setCurrentView('crm')} icon="person" tooltip="CRM Clientes" />
-            <NavButton active={currentView === 'analytics'} onClick={() => setCurrentView('analytics')} icon="insights" tooltip="Analytics & Relatórios" />
-            <NavButton active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon="auto_awesome" tooltip="Estúdio de IA" />
-            <NavButton active={currentView === 'simulation'} onClick={() => setCurrentView('simulation')} icon="view_in_ar" tooltip="Simulação de Área" />
+            <NavButton active={currentView === 'financial'} onClick={() => setCurrentView('financial')} icon="payments" tooltip="Financeiro" />
           </div>
 
           <div className="mt-auto w-full px-2">
@@ -495,7 +556,7 @@ const App: React.FC = () => {
         </div>
 
         {/* O container principal DEVE usar flex-1 e overflow-hidden para conter o scroll dentro das Views */}
-        <div className="flex-1 overflow-hidden relative flex flex-col h-full">
+        <div className="flex-1 overflow-hidden relative flex flex-col h-full pt-16 lg:pt-0">
           {renderAdminView()}
         </div>
       </div>
@@ -533,6 +594,19 @@ const App: React.FC = () => {
           properties={properties}
           onPropertySelect={handlePropertySelect}
           onLogout={handleLogout}
+          onEditProfile={() => setCurrentView('profile-settings')}
+        />
+      </PublicLayout>
+    );
+  }
+
+  if (currentView === 'profile-settings' && currentUser) {
+    return (
+      <PublicLayout>
+        <ProfileSettings
+          user={currentUser}
+          onSave={handleUpdateUser}
+          onBack={() => setCurrentView(currentUser.role === 'admin' ? 'dashboard' : 'user-dashboard')}
         />
       </PublicLayout>
     );
@@ -575,6 +649,7 @@ const App: React.FC = () => {
         onAdvertiseClick={() => setCurrentView('advertise')}
         currentUser={currentUser}
         onUserDashboardClick={() => setCurrentView('user-dashboard')}
+        onLogoutClick={handleLogout}
         onFavoriteClick={handleFavoriteAction}
         onChatClick={handleClientChatStart}
       />
@@ -603,6 +678,19 @@ const NavButton = ({ active, onClick, icon, tooltip }: { active: boolean; onClic
     <span className="absolute left-full ml-4 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
       {tooltip}
     </span>
+  </button>
+);
+
+const MobileAdminNavButton = ({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: string; label: string }) => (
+  <button
+    onClick={onClick}
+    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${active
+      ? 'bg-primary text-white shadow-lg shadow-primary/30'
+      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+      }`}
+  >
+    <span className="material-symbols-outlined">{icon}</span>
+    {label}
   </button>
 );
 

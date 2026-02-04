@@ -134,6 +134,17 @@ export const getUsers = async () => {
     }
 };
 
+export const updateUser = async (id: string, data: Partial<User>) => {
+    try {
+        const userRef = doc(db, "users", id);
+        await updateDoc(userRef, data as any);
+        return true;
+    } catch (error) {
+        console.error("Erro ao atualizar usuário:", error);
+        return false;
+    }
+};
+
 export const toggleFavorite = async (userId: string, propertyId: string | number) => {
     try {
         const userRef = doc(db, "users", userId);
