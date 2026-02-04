@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Conversation, ChatMessage } from '../src/types';
+import { Conversation, ChatMessage, Contract } from '../src/types';
 
 interface ChatManagementProps {
     conversations: Conversation[];
-    onSendMessage: (text: string, sender: 'agent', userId: number | string) => void;
+    contracts: Contract[];
+    onSendMessage: (text: string, sender: 'agent', userId: number | string, attachment?: ChatMessage['attachment']) => void;
     onMarkAsRead: (conversationId: number | string) => void;
 }
 
-const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMessage, onMarkAsRead }) => {
+const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, contracts, onSendMessage, onMarkAsRead }) => {
     const [selectedConversationId, setSelectedConversationId] = useState<number | string | null>(null);
     const [searchText, setSearchText] = useState('');
     const [replyText, setReplyText] = useState('');
+    const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Filter conversations
@@ -43,6 +45,24 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMe
         onSendMessage(replyText, 'agent', activeConversation.userId);
         setReplyText('');
     };
+
+    const handleSendAttachment = (type: 'contract' | 'invoice', contract: Contract) => {
+        if (!activeConversation) return;
+
+        const text = type === 'contract'
+            ? `Olá ${activeConversation.userName}, estou enviando o contrato do imóvel ${contract.propertyTitle} para sua assinatura digital.`
+            : `Olá ${activeConversation.userName}, a fatura mensal referente ao imóvel ${contract.propertyTitle} já está disponível.`;
+
+        onSendMessage(text, 'agent', activeConversation.userId, {
+            type,
+            id: contract.id,
+            title: contract.propertyTitle,
+            status: 'pending'
+        });
+        setIsActionMenuOpen(false);
+    };
+
+    const userContracts = contracts.filter(c => activeConversation && (c.clientId === Number(activeConversation.userId) || c.ownerId === Number(activeConversation.userId)));
 
     const getRoleBadge = (role: string) => {
         switch (role) {
@@ -171,6 +191,23 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMe
                                                 : 'bg-white dark:bg-[#1a1d23] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-tl-none'}
                                         `}>
                                             <p className="whitespace-pre-line leading-relaxed">{msg.text}</p>
+
+                                            {msg.attachment && (
+                                                <div className={`mt-3 p-3 rounded-xl border flex flex-col gap-2 ${isAgent ? 'bg-white/10 border-white/20' : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`size-10 rounded-lg flex items-center justify-center ${msg.attachment.type === 'contract' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                            <span className="material-symbols-outlined">
+                                                                {msg.attachment.type === 'contract' ? 'description' : 'receipt_long'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className={`font-bold text-xs truncate ${isAgent ? 'text-white' : 'text-slate-800 dark:text-slate-200'}`}>{msg.attachment.title}</p>
+                                                            <p className={`text-[10px] ${isAgent ? 'text-blue-100' : 'text-slate-500'}`}>{msg.attachment.type === 'contract' ? 'Contrato para Assinatura' : 'Fatura Mensal'}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isAgent ? 'text-blue-100' : 'text-slate-400'}`}>
                                                 <span>{msg.time}</span>
                                                 {isAgent && (
@@ -185,10 +222,54 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ conversations, onSendMe
                         </div>
 
                         {/* Input Area */}
-                        <div className="flex-none p-3 md:p-4 bg-white dark:bg-[#1a1d23] border-t border-slate-200 dark:border-slate-800">
+                        <div className="flex-none p-3 md:p-4 bg-white dark:bg-[#1a1d23] border-t border-slate-200 dark:border-slate-800 relative">
+                            {/* Action Menu Popover */}
+                            {isActionMenuOpen && (
+                                <div className="absolute bottom-full left-4 mb-2 w-72 bg-white dark:bg-[#1a1d23] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-50 animate-in slide-in-from-bottom-2 duration-200">
+                                    <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+                                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">Ações de Documento</h4>
+                                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-1">Enviar para {activeConversation.userName}</p>
+                                    </div>
+                                    <div className="p-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                        {userContracts.length > 0 ? (
+                                            userContracts.map(c => (
+                                                <div key={c.id} className="p-2 border-b border-slate-50 dark:border-slate-800/50 last:border-0">
+                                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 truncate">{c.propertyTitle}</p>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleSendAttachment('contract', c)}
+                                                            className="flex-1 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-bold hover:bg-amber-100 transition-colors flex items-center justify-center gap-1"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[14px]">edit_square</span> Assinatura
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleSendAttachment('invoice', c)}
+                                                            className="flex-1 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[14px]">payments</span> Fatura
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="p-4 text-center">
+                                                <p className="text-xs text-slate-500">Nenhum contrato ativo para este usuário.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="p-2 bg-slate-50 dark:bg-slate-800/50 rounded-b-2xl">
+                                        <button className="w-full py-2 text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest text-center" onClick={() => setIsActionMenuOpen(false)}>Cancelar</button>
+                                    </div>
+                                </div>
+                            )}
+
                             <form onSubmit={handleSend} className="flex items-center gap-2 md:gap-3">
-                                <button type="button" className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                                    <span className="material-symbols-outlined text-[24px]">attach_file</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsActionMenuOpen(!isActionMenuOpen)}
+                                    className={`p-2 transition-colors rounded-lg ${isActionMenuOpen ? 'bg-primary text-white' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                >
+                                    <span className="material-symbols-outlined text-[24px]">add_circle</span>
                                 </button>
                                 <input
                                     type="text"

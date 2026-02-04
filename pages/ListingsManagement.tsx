@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Property, User } from '../src/types';
-import { addProperty, updateProperty, deleteProperty } from '../src/services/dataService';
 
 interface ListingsManagementProps {
     onNavigate: (view: string) => void;
@@ -25,7 +24,6 @@ const ListingsManagement: React.FC<ListingsManagementProps> = ({
     const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'draft' | 'sold' | 'rented'>('all');
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Filter listings based on current user
     const myListings = useMemo(() => {
         if (currentUser?.role === 'admin') return properties;
         return properties.filter(p => p.ownerId === currentUser?.id);
@@ -110,8 +108,6 @@ const ListingsManagement: React.FC<ListingsManagementProps> = ({
 
     return (
         <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display h-full flex flex-col overflow-hidden relative">
-
-            {/* Header */}
             <header className="flex-none bg-surface-light dark:bg-[#111318] border-b border-slate-200 dark:border-slate-800 px-6 py-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-[1600px] mx-auto">
                     <div>
@@ -129,11 +125,8 @@ const ListingsManagement: React.FC<ListingsManagementProps> = ({
                 </div>
             </header>
 
-            {/* Main Content */}
             <main className="flex-1 overflow-y-auto p-4 md:p-6">
                 <div className="max-w-[1600px] mx-auto flex flex-col gap-6">
-
-                    {/* Stats Overview */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="bg-white dark:bg-[#1a1d23] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                             <span className="text-xs font-bold text-slate-500 uppercase">Total</span>
@@ -155,10 +148,7 @@ const ListingsManagement: React.FC<ListingsManagementProps> = ({
                         </div>
                     </div>
 
-                    {/* Controls Bar */}
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white dark:bg-[#1a1d23] p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-
-                        {/* Bulk Actions Overlay */}
                         {selectedIds.length > 0 && (
                             <div className="absolute inset-0 z-10 bg-slate-900 text-white flex items-center justify-between px-4 animate-in slide-in-from-top duration-200">
                                 <div className="flex items-center gap-4">
@@ -169,7 +159,7 @@ const ListingsManagement: React.FC<ListingsManagementProps> = ({
                                     <div className="h-6 w-px bg-white/20 mx-2"></div>
                                     <button onClick={() => handleBulkAction('active')} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-xs font-bold transition-colors">Ativar</button>
                                     <button onClick={() => handleBulkAction('sold')} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-xs font-bold transition-colors">Vender</button>
-                                    <button onClick={() => handleBulkAction('delete')} className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded text-xs font-bold transition-colors flex items-center gap-1">
+                                    <button onClick={() => handleBulkAction('delete')} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-500 hover:text-white rounded text-xs font-bold transition-colors flex items-center gap-1">
                                         <span className="material-symbols-outlined text-[16px]">delete</span> Excluir
                                     </button>
                                 </div>
@@ -219,12 +209,10 @@ const ListingsManagement: React.FC<ListingsManagementProps> = ({
                         </div>
                     </div>
 
-                    {/* Content List */}
                     {viewMode === 'grid' ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
                             {filteredListings.map(item => (
                                 <div key={item.id} className="group bg-white dark:bg-[#1a1d23] rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-xl hover:border-primary/50 transition-all duration-300 flex flex-col">
-                                    {/* Image Area */}
                                     <div className="relative h-48 overflow-hidden cursor-pointer" onClick={() => onSelectProperty(item.id)}>
                                         <img src={item.image} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60"></div>
@@ -237,7 +225,6 @@ const ListingsManagement: React.FC<ListingsManagementProps> = ({
                                             <p className="text-lg font-bold">{item.price}</p>
                                         </div>
                                     </div>
-                                    {/* Content */}
                                     <div className="p-4 flex flex-col flex-1">
                                         <h3
                                             className="font-bold text-slate-900 dark:text-white truncate cursor-pointer hover:text-primary transition-colors"
@@ -254,7 +241,6 @@ const ListingsManagement: React.FC<ListingsManagementProps> = ({
                                         </div>
 
                                         <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                                            {/* Quick Actions Dropdown (Simulated with hover for now) */}
                                             <div className="flex gap-1 group/actions relative">
                                                 <button className="text-xs font-bold text-slate-500 hover:text-primary flex items-center gap-1">
                                                     Status <span className="material-symbols-outlined text-[14px]">expand_more</span>
@@ -283,8 +269,8 @@ const ListingsManagement: React.FC<ListingsManagementProps> = ({
                             ))}
                         </div>
                     ) : (
-                        <div className="bg-white dark:bg-[#1a1d23] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-                            <table className="w-full text-left border-collapse">
+                        <div className="bg-white dark:bg-[#1a1d23] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto custom-scrollbar mb-20">
+                            <table className="w-full text-left border-collapse min-w-[800px]">
                                 <thead>
                                     <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#111318]">
                                         <th className="p-4 w-12 text-center">

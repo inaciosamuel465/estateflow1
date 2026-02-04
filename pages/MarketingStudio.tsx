@@ -9,8 +9,8 @@ interface MarketingStudioProps {
 interface MarketingCampaign {
     id: number;
     propertyTitle: string;
-    platform: 'instagram' | 'whatsapp';
-    format: 'feed' | 'story';
+    platform: 'instagram' | 'whatsapp' | 'facebook';
+    format: 'feed' | 'story' | 'reels';
     generatedText: string;
     headline: string; // Frase curta na imagem
     generatedImage: string;
@@ -25,9 +25,9 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
     // --- States ---
     const [activeMobileTab, setActiveMobileTab] = useState<MobileTab>('setup');
     const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
-    const [platform, setPlatform] = useState<'instagram' | 'whatsapp'>('instagram');
-    const [format, setFormat] = useState<'feed' | 'story'>('story');
-    const [tone, setTone] = useState<'professional' | 'viral' | 'urgent'>('viral');
+    const [platform, setPlatform] = useState<'instagram' | 'whatsapp' | 'facebook'>('instagram');
+    const [format, setFormat] = useState<'feed' | 'story' | 'reels'>('story');
+    const [tone, setTone] = useState<'professional' | 'viral' | 'urgent' | 'minimal'>('viral');
     const [template, setTemplate] = useState<TemplateType>('modern');
 
     // AI Content States
@@ -79,17 +79,24 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                 const ai = new GoogleGenAI({ apiKey });
 
                 // 1. Gerar Legenda (Caption)
-                const captionPrompt = `Atue como um especialista em marketing imobiliário. Crie uma legenda para ${platform} (${format}) com tom ${tone}.
-                Imóvel: ${propertyContext}.
-                Use emojis, quebras de linha e hashtags se for Instagram. Se for WhatsApp, seja direto e convide para visita.`;
+                const captionPrompt = `Atue como um Especialista em Copywriting para Mercado Imobiliário. 
+                Crie um roteiro/legenda de ALTA CONVERSÃO para ${platform} no formato ${format}.
+                Tom: ${tone}.
+                Dados do Imóvel: ${propertyContext}.
+                
+                REGRAS:
+                1. Comece com um HOOK (Gancho) irresistível.
+                2. Fale sobre os benefícios emocionais de morar/investir aqui.
+                3. Se for Reels/Story, descreva brevemente a cena/movimento inicial.
+                4. Termine com um Call to Action (CTA) claro.
+                5. Use Emojis estrategicamente.`;
 
                 const captionResponse = await ai.models.generateContent({
                     model: 'gemini-3-flash-preview',
                     contents: { parts: [{ text: captionPrompt }] }
                 });
 
-                // 2. Gerar Headline (Frase curta para a imagem)
-                const headlinePrompt = `Crie UMA única frase curta (máximo 5 palavras) de alto impacto para colocar em cima da foto deste imóvel. Tom: ${tone}. Exemplo: "Sua Nova Vida Começa Aqui". Imóvel: ${propertyContext}`;
+                const headlinePrompt = `Extraia a frase mais impactante e curta (máximo 4 palavras) desse imóvel para ser usada como "Headline de Capa". Tom: ${tone}. Imóvel: ${selectedProperty?.title || 'Exclusivo'}`;
 
                 const headlineResponse = await ai.models.generateContent({
                     model: 'gemini-3-flash-preview',
@@ -344,22 +351,29 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                     {/* 2. Formato e Plataforma */}
                     <div className="space-y-3">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[14px]">aspect_ratio</span> 2. Formato
+                            <span className="material-symbols-outlined text-[14px]">aspect_ratio</span> 2. Canal e Formato
                         </label>
-                        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-[#1a1d23] rounded-xl">
+                        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-[#1a1d23] rounded-xl overflow-x-auto custom-scrollbar no-scrollbar">
                             <button
-                                onClick={() => setFormat('story')}
-                                className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex flex-col items-center gap-1 transition-all ${format === 'story' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                onClick={() => { setFormat('story'); setPlatform('instagram'); }}
+                                className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-bold flex flex-col items-center gap-1 transition-all ${format === 'story' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <span className="material-symbols-outlined text-[18px]">smartphone</span>
-                                Story (9:16)
+                                Story
                             </button>
                             <button
-                                onClick={() => setFormat('feed')}
-                                className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex flex-col items-center gap-1 transition-all ${format === 'feed' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                onClick={() => { setFormat('reels'); setPlatform('instagram'); }}
+                                className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-bold flex flex-col items-center gap-1 transition-all ${format === 'reels' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <span className="material-symbols-outlined text-[18px]">movie</span>
+                                Reels
+                            </button>
+                            <button
+                                onClick={() => { setFormat('feed'); setPlatform('instagram'); }}
+                                className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-bold flex flex-col items-center gap-1 transition-all ${format === 'feed' ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <span className="material-symbols-outlined text-[18px]">crop_square</span>
-                                Feed (1:1)
+                                Feed
                             </button>
                         </div>
                     </div>
@@ -440,8 +454,8 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                     <div
                         className={`
                             relative bg-black rounded-[2.5rem] border-[8px] border-slate-800 shadow-2xl overflow-hidden transition-all duration-500 flex flex-col shrink-0
-                            ${format === 'story' ? 'w-full max-w-[360px] aspect-[9/16]' : 'w-full max-w-[400px] aspect-square'}
-                            max-h-[85vh]
+                            ${(format === 'story' || format === 'reels') ? 'w-full max-w-[320px] lg:max-w-[360px] aspect-[9/16]' : 'w-full max-w-[360px] lg:max-w-[400px] aspect-square'}
+                            max-h-[75vh] lg:max-h-[85vh]
                         `}
                     >
                         {/* Status Bar Fake */}
@@ -480,11 +494,21 @@ const MarketingStudio: React.FC<MarketingStudioProps> = ({ properties }) => {
                         </div>
 
                         {/* Bottom Actions Sim (Only for preview realism, outside artboard capture area) */}
-                        {format === 'story' && (
+                        {(format === 'story' || format === 'reels') && (
                             <div className="absolute bottom-4 left-0 w-full px-4 z-30 flex items-center gap-2">
-                                <div className="flex-1 h-10 rounded-full border border-white/30 bg-black/20 backdrop-blur text-white/70 text-xs px-4 flex items-center">Enviar mensagem...</div>
+                                <div className="flex-1 h-10 rounded-full border border-white/30 bg-black/20 backdrop-blur text-white/70 text-xs px-4 flex items-center">
+                                    {format === 'reels' ? 'Adicionar comentário...' : 'Enviar mensagem...'}
+                                </div>
                                 <span className="material-symbols-outlined text-white text-2xl">favorite</span>
                                 <span className="material-symbols-outlined text-white text-2xl">send</span>
+                            </div>
+                        )}
+                        {format === 'reels' && (
+                            <div className="absolute right-3 bottom-20 flex flex-col gap-5 z-30 text-white">
+                                <span className="material-symbols-outlined text-[28px]">favorite</span>
+                                <span className="material-symbols-outlined text-[28px]">chat_bubble</span>
+                                <span className="material-symbols-outlined text-[28px]">send</span>
+                                <span className="material-symbols-outlined text-[28px]">more_vert</span>
                             </div>
                         )}
                     </div>

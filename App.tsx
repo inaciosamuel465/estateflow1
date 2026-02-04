@@ -43,6 +43,7 @@ import {
 import LoginPage, { RegisterData } from './pages/LoginPage';
 import ClientHome from './pages/ClientHome';
 import ClientChat from './pages/ClientChat';
+import LegalChat from './pages/LegalChat';
 import OwnerLanding from './pages/OwnerLanding';
 import UserDashboard from './pages/UserDashboard';
 import ProfileSettings from './pages/ProfileSettings';
@@ -157,6 +158,10 @@ const App: React.FC = () => {
   // --- Client Chat Modal State ---
   const [isClientChatOpen, setIsClientChatOpen] = useState(false);
   const [clientChatPropertyTitle, setClientChatPropertyTitle] = useState('');
+
+  // --- Legal Chat State ---
+  const [activeLegalContract, setActiveLegalContract] = useState<Contract | null>(null);
+  const [isLegalChatOpen, setIsLegalChatOpen] = useState(false);
 
   // --- Deep Linking Logic ---
   useEffect(() => {
@@ -311,40 +316,95 @@ const App: React.FC = () => {
     // alert(`Ação de favoritos salva para ${currentUser.name}!`); // Alert opcional, visual é melhor
   };
 
+  const handleSignContractReal = async (contractId: number | string, signatureImage: string) => {
+    try {
+      if (handleUpdateContract) {
+        await handleUpdateContract(contractId, {
+          signatureStatus: 'signed',
+          signatureImage: signatureImage,
+          signedAt: new Date().toISOString()
+        });
+      }
+
+      // Update local state for immediate feedback
+      setContracts(prev => prev.map(c =>
+        String(c.id) === String(contractId)
+          ? { ...c, signatureStatus: 'signed' as const, signatureImage, signedAt: new Date().toISOString() }
+          : c
+      ));
+
+      if (activeLegalContract && String(activeLegalContract.id) === String(contractId)) {
+        setActiveLegalContract(prev => prev ? { ...prev, signatureStatus: 'signed' as const, signatureImage, signedAt: new Date().toISOString() } : null);
+      }
+
+    } catch (error) {
+      console.error("Erro ao salvar assinatura:", error);
+      alert("Houve um erro ao processar sua assinatura. Tente novamente.");
+    }
+  };
+
+
   // --- Centralized Message Handler ---
-  const handleSendMessage = async (text: string, sender: 'user' | 'agent', userId?: number | string) => {
+  const handleSendMessage = async (text: string, sender: 'user' | 'agent', conversationIdOrUserId?: number | string, attachment?: ChatMessage['attachment']) => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newMessage: ChatMessage = {
       id: Date.now(),
       sender,
       text,
       time,
-      read: sender === 'agent'
+      read: sender === 'agent',
+      attachment
     };
 
     // Identificar ID da conversa (sempre string)
-    const targetUserId = userId || currentUser?.id || "anonymous";
-    const conversationId = String(targetUserId);
+    // Se conversationIdOrUserId começar com 'legal_', é um chat de contrato.
+    // Senão, é o ID do usuário (chat de atendimento geral).
+    let conversationId = "";
+    let targetUserId: string | number = "anonymous";
+    let isLegal = false;
+
+    if (typeof conversationIdOrUserId === 'string' && conversationIdOrUserId.startsWith('legal_')) {
+      conversationId = conversationIdOrUserId;
+      isLegal = true;
+      // Extrair ID do contrato se necessário, mas para conversa usamos o ID composto
+    } else {
+      targetUserId = conversationIdOrUserId || currentUser?.id || "anonymous";
+      conversationId = String(targetUserId);
+    }
 
     // Preparar dados da conversa para update/create
     const targetUser = users.find(u => String(u.id) === String(targetUserId));
 
     const conversationData: Partial<Conversation> = {
-      userId: Number(targetUserId) || 0, // Fallback se não for número (ex: string hash)
+      userId: isLegal ? 0 : (Number(targetUserId) || 0),
       id: conversationId,
-      userName: targetUser?.name || currentUser?.name || "Usuário",
-      userAvatar: targetUser?.avatar || currentUser?.avatar || "https://ui-avatars.com/api/?name=User",
-      userRole: targetUser?.role || currentUser?.role || 'client',
-      lastMessage: text,
+      userName: isLegal ? `Jurídico: ${text.substring(0, 20)}...` : (targetUser?.name || currentUser?.name || "Usuário"),
+      userAvatar: isLegal ? "https://cdn-icons-png.flaticon.com/512/921/921347.png" : (targetUser?.avatar || currentUser?.avatar || "https://ui-avatars.com/api/?name=User"),
+      userRole: isLegal ? 'client' : (targetUser?.role || currentUser?.role || 'client' as any),
+      lastMessage: attachment ? `[Anexo: ${attachment.title}]` : text,
       lastMessageTime: time,
       unreadCount: sender === 'user' ? 1 : 0
     };
+
+    // Especial check para conversa jurídica: se já existir, mantemos o nome/avatar original ou atualizamos
+    const existingConv = conversations.find(c => c.id === conversationId);
+    if (isLegal && existingConv) {
+      conversationData.userName = existingConv.userName;
+      conversationData.userAvatar = existingConv.userAvatar;
+    } else if (isLegal) {
+      // Tentar obter o título do contrato para o nome da conversa
+      const contractIdAttr = conversationId.replace('legal_', '');
+      const contract = contracts.find(c => String(c.id) === contractIdAttr);
+      if (contract) {
+        conversationData.userName = `Canal Jurídico: ${contract.propertyTitle}`;
+      }
+    }
 
     // Salvar no Firebase (Optimistic update on UI via subscription)
     await saveMessage(conversationId, newMessage, conversationData);
 
     // Create notification for new user messages (leads)
-    if (sender === 'user' && currentUser?.role !== 'admin') {
+    if (sender === 'user' && currentUser?.role !== 'admin' && !isLegal) {
       await createLeadNotification(
         conversationData.userName || 'Usuário',
         clientChatPropertyTitle || undefined
@@ -433,12 +493,32 @@ const App: React.FC = () => {
             users={users}
             onAddContract={handleAddContract}
             onDeleteContract={handleDeleteContract}
-            onUpdateContract={handleUpdateContract} // Passando a função de update
+            onUpdateContract={handleUpdateContract}
+            onOpenLegalChat={(contract) => {
+              setActiveLegalContract(contract);
+              setIsLegalChatOpen(true);
+            }}
+            onShareContractToChat={(contract) => {
+              handleSendMessage(
+                `Encaminhei o contrato de ${contract.type === 'rent' ? 'locação' : 'venda'} para sua conferência.`,
+                'agent',
+                `legal_${contract.id}`,
+                {
+                  type: 'contract',
+                  id: contract.id,
+                  title: `Contrato: ${contract.propertyTitle}`,
+                  status: contract.status
+                }
+              );
+              setActiveLegalContract(contract);
+              setIsLegalChatOpen(true);
+            }}
           />
         );
         case 'chat': return (
           <ChatManagement
             conversations={conversations}
+            contracts={contracts}
             onSendMessage={handleSendMessage}
             onMarkAsRead={handleMarkAsRead}
           />
@@ -472,48 +552,56 @@ const App: React.FC = () => {
 
     return (
       <div className="flex h-screen w-full overflow-hidden bg-background-light dark:bg-background-dark">
-        {/* Mobile Header (Admin) */}
-        <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-[#0b0e14] border-b border-slate-200 dark:border-slate-800 z-[60] flex items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">roofing</span>
-            <span className="font-bold text-slate-800 dark:text-white">EstateFlow</span>
+        {/* Mobile Header (Admin) - More integrated */}
+        <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-[#0b0e14]/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 z-[70] flex items-center justify-between px-6">
+          <div className="flex items-center gap-3">
+            <div className="size-8 rounded-lg bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
+              <span className="material-symbols-outlined text-lg">roofing</span>
+            </div>
+            <span className="font-extrabold text-slate-900 dark:text-white tracking-tight">EstateFlow <span className="text-primary">Suite</span></span>
           </div>
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+            className="size-10 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl active:scale-95 transition-all"
           >
-            <span className="material-symbols-outlined">{isMobileMenuOpen ? 'close' : 'menu'}</span>
+            <span className="material-symbols-outlined">{isMobileMenuOpen ? 'close' : 'grid_view'}</span>
           </button>
         </div>
 
-        {/* Mobile Menu Overlay/Drawer (Admin) */}
+        {/* Mobile Menu Overlay / Module Selector */}
         {isMobileMenuOpen && (
-          <div className="lg:hidden fixed inset-0 z-[55] bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="absolute top-16 right-0 bottom-0 w-64 bg-white dark:bg-[#0b0e14] shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
-              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
-                <div className="size-10 rounded-full bg-cover bg-center border border-slate-200" style={{ backgroundImage: `url("${currentUser.avatar}")` }}></div>
-                <div>
-                  <p className="font-bold text-sm text-slate-900 dark:text-white">{currentUser.name}</p>
-                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">{currentUser.role}</p>
+          <div className="lg:hidden fixed inset-0 z-[65] bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300">
+            <div className="absolute inset-x-0 top-0 pt-20 pb-10 px-6 bg-white dark:bg-[#0b0e14] rounded-b-[2.5rem] shadow-2xl animate-in slide-in-from-top-4 duration-300 flex flex-col max-h-[90vh] overflow-y-auto">
+              <div className="mb-8">
+                <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-4">Módulos do Sistema</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <MobileAdminNavButton active={currentView === 'dashboard'} onClick={() => { setCurrentView('dashboard'); setIsMobileMenuOpen(false); }} icon="dashboard" label="Home" />
+                  <MobileAdminNavButton active={currentView === 'all-listings'} onClick={() => { setCurrentView('all-listings'); setIsMobileMenuOpen(false); }} icon="inventory_2" label="Imóveis" />
+                  <MobileAdminNavButton active={currentView === 'contracts'} onClick={() => { setCurrentView('contracts'); setIsMobileMenuOpen(false); }} icon="gavel" label="Jurídico" />
+                  <MobileAdminNavButton active={currentView === 'chat'} onClick={() => { setCurrentView('chat'); setIsMobileMenuOpen(false); }} icon="chat" label="Mensagens" />
+                  <MobileAdminNavButton active={currentView === 'marketing'} onClick={() => { setCurrentView('marketing'); setIsMobileMenuOpen(false); }} icon="campaign" label="Marketing" />
+                  <MobileAdminNavButton active={currentView === 'financial'} onClick={() => { setCurrentView('financial'); setIsMobileMenuOpen(false); }} icon="payments" label="Financeiro" />
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
-                <MobileAdminNavButton active={currentView === 'dashboard'} onClick={() => { setCurrentView('dashboard'); setIsMobileMenuOpen(false); }} icon="dashboard" label="Dashboard" />
-                <MobileAdminNavButton active={currentView === 'all-listings'} onClick={() => { setCurrentView('all-listings'); setIsMobileMenuOpen(false); }} icon="inventory_2" label="Imóveis" />
-                <MobileAdminNavButton active={currentView === 'contracts'} onClick={() => { setCurrentView('contracts'); setIsMobileMenuOpen(false); }} icon="gavel" label="Contratos" />
-                <MobileAdminNavButton active={currentView === 'chat'} onClick={() => { setCurrentView('chat'); setIsMobileMenuOpen(false); }} icon="chat" label="Mensagens" />
-                <MobileAdminNavButton active={currentView === 'profile-settings'} onClick={() => { setCurrentView('profile-settings'); setIsMobileMenuOpen(false); }} icon="settings" label="Minha Conta" />
-              </div>
-              <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+
+              <div className="mt-4 pt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 rounded-full bg-cover bg-center border border-slate-200" style={{ backgroundImage: `url("${currentUser.avatar}")` }}></div>
+                  <div>
+                    <p className="font-bold text-sm text-slate-900 dark:text-white">{currentUser.name}</p>
+                    <button onClick={() => { setCurrentView('profile-settings'); setIsMobileMenuOpen(false); }} className="text-xs text-primary font-bold">Ver Perfil</button>
+                  </div>
+                </div>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:bg-rose-50 rounded-xl transition-all font-bold text-sm"
+                  className="size-10 flex items-center justify-center text-rose-500 bg-rose-50 dark:bg-rose-500/10 rounded-xl"
                 >
                   <span className="material-symbols-outlined">logout</span>
-                  Sair do Sistema
                 </button>
               </div>
             </div>
+            {/* Click outside to close */}
+            <div className="flex-1 h-full" onClick={() => setIsMobileMenuOpen(false)}></div>
           </div>
         )}
 
@@ -537,7 +625,7 @@ const App: React.FC = () => {
           <div className="flex flex-col gap-4 w-full px-2">
             <NavButton active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} icon="dashboard" tooltip="Painel Administrativo" />
             <NavButton active={currentView === 'all-listings' || currentView === 'edit-listing'} onClick={() => setCurrentView('all-listings')} icon="inventory_2" tooltip="Meus Anúncios" />
-            <NavButton active={currentView === 'contracts'} onClick={() => setCurrentView('contracts')} icon="gavel" tooltip="Gestão Jurídica & Contratos" />
+            <NavButton active={currentView === 'contracts'} onClick={() => setCurrentView('contracts')} icon="gavel" tooltip="Canal Jurídico & Contratos" />
             <NavButton active={currentView === 'chat'} onClick={() => setCurrentView('chat')} icon="chat" tooltip="Chat & Atendimento" />
             <NavButton active={currentView === 'profile-settings'} onClick={() => setCurrentView('profile-settings')} icon="settings" tooltip="Configurações da Conta" />
             <NavButton active={currentView === 'marketing'} onClick={() => setCurrentView('marketing')} icon="campaign" tooltip="Marketing Studio" />
@@ -559,6 +647,18 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-hidden relative flex flex-col h-full pt-16 lg:pt-0">
           {renderAdminView()}
         </div>
+
+        {/* Global Modals for Admin */}
+        {isLegalChatOpen && activeLegalContract && (
+          <LegalChat
+            contract={activeLegalContract}
+            currentUser={currentUser!}
+            messages={conversations.find(c => c.id === `legal_${activeLegalContract.id}`)?.messages || []}
+            onSendMessage={(text, sender, attachment) => handleSendMessage(text, sender, `legal_${activeLegalContract.id}`, attachment)}
+            onSignContract={handleSignContractReal}
+            onClose={() => setIsLegalChatOpen(false)}
+          />
+        )}
       </div>
     );
   }
@@ -592,10 +692,26 @@ const App: React.FC = () => {
           user={currentUser}
           onBack={() => setCurrentView('home')}
           properties={properties}
+          contracts={contracts}
           onPropertySelect={handlePropertySelect}
           onLogout={handleLogout}
           onEditProfile={() => setCurrentView('profile-settings')}
+          onUpdateContract={handleUpdateContract}
+          onOpenLegalChat={(contract) => {
+            setActiveLegalContract(contract);
+            setIsLegalChatOpen(true);
+          }}
         />
+        {isLegalChatOpen && activeLegalContract && (
+          <LegalChat
+            contract={activeLegalContract}
+            currentUser={currentUser}
+            messages={conversations.find(c => c.id === `legal_${activeLegalContract.id}`)?.messages || []}
+            onSendMessage={(text, sender, attachment) => handleSendMessage(text, sender, `legal_${activeLegalContract.id}`, attachment)}
+            onSignContract={handleSignContractReal}
+            onClose={() => setIsLegalChatOpen(false)}
+          />
+        )}
       </PublicLayout>
     );
   }
@@ -662,6 +778,16 @@ const App: React.FC = () => {
         />
       )}
       <WhatsAppButton phoneNumber="5515997241175" />
+      {isLegalChatOpen && activeLegalContract && (
+        <LegalChat
+          contract={activeLegalContract}
+          currentUser={currentUser!}
+          messages={conversations.find(c => c.id === `legal_${activeLegalContract.id}`)?.messages || []}
+          onSendMessage={(text, sender, attachment) => handleSendMessage(text, sender, `legal_${activeLegalContract.id}`, attachment)}
+          onSignContract={handleSignContractReal}
+          onClose={() => setIsLegalChatOpen(false)}
+        />
+      )}
     </PublicLayout>
   );
 };
@@ -684,13 +810,13 @@ const NavButton = ({ active, onClick, icon, tooltip }: { active: boolean; onClic
 const MobileAdminNavButton = ({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: string; label: string }) => (
   <button
     onClick={onClick}
-    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${active
-      ? 'bg-primary text-white shadow-lg shadow-primary/30'
-      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+    className={`flex flex-col items-center justify-center gap-2 p-4 rounded-3xl transition-all ${active
+      ? 'bg-primary text-white shadow-xl shadow-primary/30'
+      : 'bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
       }`}
   >
-    <span className="material-symbols-outlined">{icon}</span>
-    {label}
+    <span className="material-symbols-outlined text-[28px]">{icon}</span>
+    <span className="text-[10px] font-black uppercase tracking-wider">{label}</span>
   </button>
 );
 

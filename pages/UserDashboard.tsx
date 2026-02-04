@@ -1,22 +1,45 @@
 import React, { useState } from 'react';
-import { User, Property } from '../src/types';
+import { User, Property, Contract } from '../src/types';
 
 interface UserDashboardProps {
     user: User;
     onBack: () => void;
     properties: Property[];
+    contracts: Contract[];
     onPropertySelect: (id: number | string) => void;
     onLogout: () => void;
     onEditProfile?: () => void;
+    onUpdateContract?: (id: number | string, data: Partial<Contract>) => void;
+    onOpenLegalChat?: (contract: Contract) => void;
 }
 
-const UserDashboard: React.FC<UserDashboardProps> = ({ user, onBack, properties, onPropertySelect, onLogout, onEditProfile }) => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'favorites' | 'listings'>('profile');
+const UserDashboard: React.FC<UserDashboardProps> = ({
+    user,
+    onBack,
+    properties,
+    contracts,
+    onPropertySelect,
+    onLogout,
+    onEditProfile,
+    onUpdateContract,
+    onOpenLegalChat
+}) => {
+    const [activeTab, setActiveTab] = useState<'profile' | 'favorites' | 'listings' | 'juridico'>('profile');
+    const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+    const [isSigning, setIsSigning] = useState(false);
 
     // Filtrar imóveis do proprietário (se for owner)
     const myListings = properties.filter(p => p.ownerId === user.id);
 
     const myFavorites = properties.filter(p => user.favorites?.includes(String(p.id)));
+
+    const myContracts = contracts.filter(c => c.clientId === user.id || c.ownerId === user.id);
+
+    const handleSignContract = (contract: Contract) => {
+        if (onOpenLegalChat) {
+            onOpenLegalChat(contract);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 font-display">
@@ -84,6 +107,13 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onBack, properties,
                                         <span className="material-symbols-outlined">real_estate_agent</span> Imóveis
                                     </button>
                                 )}
+
+                                <button
+                                    onClick={() => setActiveTab('juridico')}
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'juridico' ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'text-slate-600 hover:bg-slate-50'}`}
+                                >
+                                    <span className="material-symbols-outlined">gavel</span> Canal Jurídico
+                                </button>
 
                                 <button
                                     onClick={onLogout}
@@ -204,6 +234,129 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onBack, properties,
                                                         <button onClick={() => onPropertySelect(property.id)} className="text-sm font-bold text-primary hover:underline">Ver Anúncio</button>
                                                         <button className="text-sm font-bold text-slate-500 hover:text-slate-800">Editar</button>
                                                         <button className="text-sm font-bold text-rose-500 hover:text-rose-700 ml-auto">Pausar</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'juridico' && (
+                            <div className="space-y-6">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-slate-900">Gestão de Contratos</h3>
+                                        <p className="text-slate-500 text-sm">Visualize seus documentos, assine contratos e gerencie pagamentos.</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                                            <div className="size-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                                <span className="material-symbols-outlined">verified</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase">Status Geral</p>
+                                                <p className="text-sm font-bold text-slate-700">Tudo em dia</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {myContracts.length === 0 ? (
+                                    <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm">
+                                        <div className="size-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <span className="material-symbols-outlined text-4xl text-slate-300">description</span>
+                                        </div>
+                                        <h4 className="text-lg font-bold text-slate-800">Nenhum contrato ativo</h4>
+                                        <p className="text-slate-500 max-w-sm mx-auto mt-2 text-sm">
+                                            Você ainda não possui contratos vinculados a esta conta. Quando houver um novo documento, ele aparecerá aqui para sua revisão e assinatura.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-6">
+                                        {myContracts.map(contract => (
+                                            <div key={contract.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all">
+                                                <div className="p-6 md:p-8">
+                                                    <div className="flex flex-col md:flex-row gap-4 md:gap-6">
+                                                        {/* Imagem do Imóvel */}
+                                                        <div className="w-full md:w-32 h-24 md:h-32 rounded-xl bg-cover bg-center shrink-0 border border-slate-100" style={{ backgroundImage: `url("${contract.propertyImage}")` }}></div>
+
+                                                        <div className="flex-1 space-y-4">
+                                                            <div className="flex flex-row md:items-start justify-between gap-2">
+                                                                <div className="min-w-0">
+                                                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${contract.type === 'rent' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                                                                            {contract.type === 'rent' ? 'Locação' : 'Venda'}
+                                                                        </span>
+                                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${contract.signatureStatus === 'signed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                                            {contract.signatureStatus === 'signed' ? 'Assinado' : 'Pendência'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <h4 className="font-bold text-base md:text-lg text-slate-900 leading-tight truncate">{contract.propertyTitle}</h4>
+                                                                    <p className="text-slate-500 text-[11px] md:text-sm flex items-center gap-1">
+                                                                        <span className="material-symbols-outlined text-[14px]">calendar_month</span>
+                                                                        {new Date(contract.startDate).toLocaleDateString('pt-BR')}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="text-right shrink-0">
+                                                                    <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase">Valor</p>
+                                                                    <p className="text-base md:text-xl font-black text-slate-900 leading-none">R$ {contract.value.toLocaleString('pt-BR')}</p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4 p-3 md:p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                                                <div>
+                                                                    <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase">Vencto</p>
+                                                                    <p className="text-xs md:text-sm font-bold text-slate-700">D{contract.dueDay}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase">Status</p>
+                                                                    <p className={`text-xs md:text-sm font-bold ${contract.nextPaymentStatus === 'overdue' ? 'text-rose-500' : 'text-slate-700'}`}>
+                                                                        {contract.nextPaymentStatus === 'paid' ? 'Pago' : contract.nextPaymentStatus === 'overdue' ? 'Atraso' : 'A pagar'}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="hidden md:block">
+                                                                    <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase">Parcelas</p>
+                                                                    <p className="text-xs md:text-sm font-bold text-slate-700">{contract.installmentsPaid || 0}/{contract.installmentsTotal || 12}</p>
+                                                                </div>
+                                                                <div className="flex items-center justify-end">
+                                                                    {contract.nextPaymentStatus !== 'paid' && (
+                                                                        <button className="text-[10px] md:text-xs font-bold text-primary flex items-center gap-1 hover:underline">
+                                                                            <span className="material-symbols-outlined text-[14px] md:text-[16px]">receipt_long</span> Fatura
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex flex-wrap gap-3 pt-2">
+                                                                {contract.signatureStatus === 'pending' ? (
+                                                                    <button
+                                                                        onClick={() => handleSignContract(contract)}
+                                                                        className="flex-1 md:flex-none px-6 py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-blue-600 transition-all flex items-center justify-center gap-2"
+                                                                    >
+                                                                        <span className="material-symbols-outlined">edit_square</span>
+                                                                        Assinar Agora
+                                                                    </button>
+                                                                ) : (
+                                                                    <button className="flex-1 md:flex-none px-6 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
+                                                                        <span className="material-symbols-outlined">download</span> Baixar Cópia
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => onOpenLegalChat && onOpenLegalChat(contract)}
+                                                                    className="flex-1 md:flex-none px-6 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                                                                >
+                                                                    <span className="material-symbols-outlined">contact_support</span> Canal Jurídico
+                                                                </button>
+
+                                                                {contract.nextPaymentStatus !== 'paid' && (
+                                                                    <button className="md:ml-auto flex-1 md:flex-none px-6 py-2.5 bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
+                                                                        <span className="material-symbols-outlined">upload_file</span> Enviar Comprovante
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>

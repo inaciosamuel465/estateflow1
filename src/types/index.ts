@@ -4,6 +4,12 @@ export interface ChatMessage {
     text: string;
     time: string;
     read: boolean;
+    attachment?: {
+        type: 'contract' | 'invoice' | 'receipt';
+        id: string | number;
+        title: string;
+        status?: string;
+    };
 }
 
 export interface Conversation {
@@ -87,6 +93,9 @@ export interface Contract {
     nextPaymentStatus: 'pending' | 'paid' | 'overdue';
     templateType?: 'rent_residential' | 'sale_cash' | 'season';
     signatureStatus?: 'pending' | 'signed';
+    customContent?: string;
+    signatureImage?: string;
+    signedAt?: string;
 }
 
 export interface Notification {

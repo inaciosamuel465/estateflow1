@@ -237,10 +237,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
 
-          {/* Grid de Estatísticas */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Grid de Estatísticas - Scrollable horizontal on mobile */}
+          <div className="flex xl:grid xl:grid-cols-5 gap-4 overflow-x-auto pb-4 xl:pb-0 no-scrollbar">
             {/* Card 1 */}
-            <div className="flex flex-col gap-3 rounded-xl p-5 bg-white dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-800 shadow-sm hover:border-primary/50 transition-colors group">
+            <div className="flex-none w-[160px] md:w-auto xl:flex-1 flex flex-col gap-3 rounded-xl p-5 bg-white dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-800 shadow-sm hover:border-primary/50 transition-colors group">
               <div className="flex justify-between items-start">
                 <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                   <span className="material-symbols-outlined text-[24px]">home_work</span>
@@ -253,7 +253,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
             {/* Card 2 */}
-            <div className="flex flex-col gap-3 rounded-xl p-5 bg-white dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-800 shadow-sm hover:border-primary/50 transition-colors group">
+            <div className="flex-none w-[160px] md:w-auto xl:flex-1 flex flex-col gap-3 rounded-xl p-5 bg-white dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-800 shadow-sm hover:border-primary/50 transition-colors group">
               <div className="flex justify-between items-start">
                 <div className="p-2 rounded-lg bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 group-hover:bg-violet-600 group-hover:text-white transition-colors">
                   <span className="material-symbols-outlined text-[24px]">visibility</span>
@@ -266,7 +266,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
             {/* Card 3 */}
-            <div className="flex flex-col gap-3 rounded-xl p-5 bg-white dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-800 shadow-sm hover:border-primary/50 transition-colors group">
+            <div className="flex-none w-[160px] md:w-auto xl:flex-1 flex flex-col gap-3 rounded-xl p-5 bg-white dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-800 shadow-sm hover:border-primary/50 transition-colors group">
               <div className="flex justify-between items-start">
                 <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 group-hover:bg-amber-600 group-hover:text-white transition-colors">
                   <span className="material-symbols-outlined text-[24px]">groups</span>
@@ -279,7 +279,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
             {/* Card 4 */}
-            <div className="flex flex-col gap-3 rounded-xl p-5 bg-white dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-800 shadow-sm hover:border-primary/50 transition-colors group">
+            <div className="flex-none w-[160px] md:w-auto xl:flex-1 flex flex-col gap-3 rounded-xl p-5 bg-white dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-800 shadow-sm hover:border-primary/50 transition-colors group">
               <div className="flex justify-between items-start">
                 <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 group-hover:bg-rose-600 group-hover:text-white transition-colors">
                   <span className="material-symbols-outlined text-[24px]">pie_chart</span>
@@ -292,7 +292,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
             {/* Card 5 */}
-            <div className="flex flex-col gap-3 rounded-xl p-5 bg-white dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-800 shadow-sm hover:border-primary/50 transition-colors group">
+            <div className="flex-none w-[160px] md:w-auto xl:flex-1 flex flex-col gap-3 rounded-xl p-5 bg-white dark:bg-[#1a1d23] border border-slate-200 dark:border-slate-800 shadow-sm hover:border-primary/50 transition-colors group">
               <div className="flex justify-between items-start">
                 <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 group-hover:bg-teal-600 group-hover:text-white transition-colors">
                   <span className="material-symbols-outlined text-[24px]">payments</span>

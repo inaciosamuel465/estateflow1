@@ -58,10 +58,36 @@ const ClientChat: React.FC<ClientChatProps> = ({ propertyTitle, onClose, message
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm ${msg.sender === 'user'
-                ? 'bg-primary text-white rounded-tr-none'
-                : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
+              ? 'bg-primary text-white rounded-tr-none'
+              : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
               }`}>
               <p>{msg.text}</p>
+
+              {msg.attachment && (
+                <div className={`mt-3 p-3 rounded-xl border flex flex-col gap-3 ${msg.sender === 'user' ? 'bg-white/10 border-white/20' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`size-10 rounded-lg flex items-center justify-center ${msg.attachment.type === 'contract' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                      <span className="material-symbols-outlined">
+                        {msg.attachment.type === 'contract' ? 'description' : 'receipt_long'}
+                      </span>
+                    </div>
+                    <div>
+                      <p className={`font-bold text-xs ${msg.sender === 'user' ? 'text-white' : 'text-slate-800'}`}>{msg.attachment.title}</p>
+                      <p className={`text-[10px] ${msg.sender === 'user' ? 'text-blue-100' : 'text-slate-500'}`}>{msg.attachment.type === 'contract' ? 'Contrato disponível para assinar' : 'Nova fatura mensal'}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      window.location.hash = '#juridico'; // Simulation of navigation
+                      alert("Redirecionando para seu Portal do Cliente > Jurídico...");
+                    }}
+                    className={`w-full py-2 rounded-lg text-xs font-bold transition-all ${msg.sender === 'user' ? 'bg-white text-primary hover:bg-white/90' : 'bg-primary text-white hover:bg-blue-600'}`}
+                  >
+                    Abrir no Portal
+                  </button>
+                </div>
+              )}
+
               <span className={`text-[10px] block mt-1 text-right ${msg.sender === 'user' ? 'text-blue-100' : 'text-slate-400'}`}>{msg.time}</span>
             </div>
           </div>

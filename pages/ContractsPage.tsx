@@ -114,9 +114,11 @@ interface ContractsPageProps {
     onAddContract: (c: Contract) => void;
     onDeleteContract: (id: number | string) => void;
     onUpdateContract: (id: number | string, data: Partial<Contract>) => void;
+    onOpenLegalChat?: (contract: Contract) => void;
+    onShareContractToChat?: (contract: Contract) => void;
 }
 
-const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, users, onAddContract, onDeleteContract, onUpdateContract }) => {
+const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, users, onAddContract, onDeleteContract, onUpdateContract, onOpenLegalChat, onShareContractToChat }) => {
     // --- States ---
     const [viewMode, setViewMode] = useState<'list' | 'create' | 'view'>('list');
     const [layoutMode, setLayoutMode] = useState<'grid' | 'table'>('grid');
@@ -136,8 +138,9 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
         commissionRate: '10'
     });
 
-    // View Mode States
+    // View/Edit Mode States
     const [viewingContract, setViewingContract] = useState<Contract | null>(null);
+    const [editingContract, setEditingContract] = useState<Contract | null>(null);
     const [generatedBody, setGeneratedBody] = useState(''); // Apenas o corpo do texto
     const [isEditingText, setIsEditingText] = useState(false);
     const [currentText, setCurrentText] = useState('');
@@ -187,13 +190,11 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
             return;
         }
 
-        const newContract: Contract = {
-            id: Date.now(),
+        const contractData: Partial<Contract> = {
             propertyId: prop.id,
             propertyTitle: prop.title,
             propertyImage: prop.image,
             type: selectedTemplate === 'sale_cash' ? 'sale' : 'rent',
-            status: 'active',
             clientId: cli.id,
             clientName: cli.name,
             clientPhone: cli.phone || '',
@@ -205,13 +206,26 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
             dueDay: parseInt(formData.dueDay),
             startDate: formData.startDate,
             endDate: formData.endDate,
-            nextPaymentStatus: 'pending',
-            templateType: selectedTemplate,
-            signatureStatus: 'pending'
+            templateType: selectedTemplate as any,
         };
 
-        onAddContract(newContract);
+        if (editingContract) {
+            onUpdateContract(editingContract.id, contractData);
+            alert("Contrato atualizado com sucesso!");
+        } else {
+            const newContract: Contract = {
+                id: Date.now(),
+                status: 'active',
+                nextPaymentStatus: 'pending',
+                signatureStatus: 'pending',
+                ...(contractData as any)
+            };
+            onAddContract(newContract);
+            alert("Contrato gerado com sucesso!");
+        }
+
         setViewMode('list');
+        setEditingContract(null);
         setFormData({ propertyId: '', clientId: '', ownerId: '', value: '', startDate: '', endDate: '', dueDay: '5', commissionRate: '10' });
     };
 
@@ -288,7 +302,7 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
 
     const handleViewContract = (contract: Contract) => {
         setViewingContract(contract);
-        const bodyText = generateDocumentBody(contract);
+        const bodyText = contract.customContent || generateDocumentBody(contract);
         setGeneratedBody(bodyText);
         setCurrentText(bodyText);
         setIsEditingText(false);
@@ -308,11 +322,32 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
         generateContractPDF(contract, property, tenant, owner);
     };
 
+    const handleEditContract = (contract: Contract) => {
+        setEditingContract(contract);
+        setSelectedTemplate(contract.templateType as any || 'rent_residential');
+        setFormData({
+            propertyId: String(contract.propertyId),
+            clientId: String(contract.clientId),
+            ownerId: String(contract.ownerId),
+            value: String(contract.value),
+            startDate: contract.startDate,
+            endDate: contract.endDate || '',
+            dueDay: String(contract.dueDay),
+            commissionRate: String(contract.commissionRate)
+        });
+        setViewMode('create');
+    };
+
     const handlePrint = () => {
         window.print();
     };
 
     const handleSaveEdit = () => {
+        if (viewingContract) {
+            onUpdateContract(viewingContract.id, { customContent: currentText });
+            setViewingContract({ ...viewingContract, customContent: currentText });
+            alert("Conteúdo do contrato salvo com sucesso!");
+        }
         setGeneratedBody(currentText);
         setIsEditingText(false);
     };
@@ -401,7 +436,11 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                                     </button>
                                 </div>
                                 <button
-                                    onClick={() => setViewMode('create')}
+                                    onClick={() => {
+                                        setEditingContract(null);
+                                        setFormData({ propertyId: '', clientId: '', ownerId: '', value: '', startDate: '', endDate: '', dueDay: '5', commissionRate: '10' });
+                                        setViewMode('create');
+                                    }}
                                     className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-primary/20 transition-all active:scale-95"
                                 >
                                     <span className="material-symbols-outlined text-[20px]">add_circle</span> Novo Contrato
@@ -420,8 +459,8 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-black/20">
-                <div className="max-w-[1600px] mx-auto flex flex-col gap-8 h-full">
+            <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-100 dark:bg-black/20">
+                <div className="max-w-[1600px] mx-auto flex flex-col gap-8">
 
                     {/* VIEW: LIST MODE */}
                     {viewMode === 'list' && (
@@ -560,6 +599,20 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                                                         <span className="material-symbols-outlined text-[18px]">download</span> PDF
                                                     </button>
                                                     <button
+                                                        onClick={() => handleEditContract(contract)}
+                                                        className="px-3 border border-slate-200 dark:border-slate-700 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-600 text-slate-400 rounded-lg transition-colors flex items-center justify-center"
+                                                        title="Editar Dados do Contrato"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px]">edit</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => onOpenLegalChat?.(contract)}
+                                                        className="px-3 border border-slate-200 dark:border-slate-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 text-slate-400 rounded-lg transition-colors flex items-center justify-center"
+                                                        title="Abrir Canal Jurídico"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px]">gavel</span>
+                                                    </button>
+                                                    <button
                                                         onClick={() => handleDelete(contract.id)}
                                                         className="px-3 border border-slate-200 dark:border-slate-700 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-400 rounded-lg transition-colors flex items-center justify-center"
                                                         title="Excluir Contrato"
@@ -624,11 +677,17 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                                                     </td>
                                                     <td className="p-4 text-right">
                                                         <div className="flex justify-end gap-2">
+                                                            <button onClick={() => onOpenLegalChat?.(contract)} className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-primary hover:text-primary transition-colors" title="Canal Jurídico">
+                                                                <span className="material-symbols-outlined text-[18px]">gavel</span>
+                                                            </button>
                                                             <button onClick={() => handleViewContract(contract)} className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-primary transition-colors" title="Visualizar">
                                                                 <span className="material-symbols-outlined text-[18px]">visibility</span>
                                                             </button>
                                                             <button onClick={() => handleDownloadPDF(contract)} className="p-1.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-slate-500 hover:text-blue-600 transition-colors" title="Baixar PDF">
                                                                 <span className="material-symbols-outlined text-[18px]">download</span>
+                                                            </button>
+                                                            <button onClick={() => handleEditContract(contract)} className="p-1.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-slate-500 hover:text-amber-600 transition-colors" title="Editar">
+                                                                <span className="material-symbols-outlined text-[18px]">edit</span>
                                                             </button>
                                                             <button onClick={() => handleDelete(contract.id)} className="p-1.5 rounded hover:bg-rose-100 dark:hover:bg-rose-900/30 text-slate-500 hover:text-rose-500 transition-colors" title="Excluir">
                                                                 <span className="material-symbols-outlined text-[18px]">delete</span>
@@ -652,8 +711,8 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                                     <span className="material-symbols-outlined text-xl">post_add</span>
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Gerador de Contrato</h2>
-                                    <p className="text-sm text-slate-500">Selecione o modelo jurídico adequado.</p>
+                                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">{editingContract ? 'Editar Contrato' : 'Gerador de Contrato'}</h2>
+                                    <p className="text-sm text-slate-500">{editingContract ? 'Atualize as informações do contrato.' : 'Selecione o modelo jurídico adequado.'}</p>
                                 </div>
                             </div>
 
@@ -771,7 +830,7 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                                 <div className="flex gap-4 pt-6">
                                     <button type="button" onClick={() => setViewMode('list')} className="px-6 py-3 border border-slate-200 dark:border-slate-700 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-white">Cancelar</button>
                                     <button type="submit" className="flex-1 px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-                                        <span className="material-symbols-outlined">save</span> Gerar Documento
+                                        <span className="material-symbols-outlined">save</span> {editingContract ? 'Salvar Alterações' : 'Gerar Documento'}
                                     </button>
                                 </div>
                             </form>
@@ -967,6 +1026,24 @@ const ContractsPage: React.FC<ContractsPageProps> = ({ contracts, properties, us
                                                     onClick={() => alert("Simulação: Link enviado para assinatura digital (DocuSign/ClickSign).")}
                                                 >
                                                     <span className="material-symbols-outlined">send</span> Enviar p/ Assinatura
+                                                </button>
+
+                                                <button
+                                                    onClick={() => {
+                                                        if (onShareContractToChat) onShareContractToChat(viewingContract);
+                                                    }}
+                                                    className="w-full py-3 bg-blue-50 dark:bg-blue-900/10 text-blue-600 border border-blue-100 dark:border-blue-800 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors"
+                                                >
+                                                    <span className="material-symbols-outlined">send_and_archive</span> Enviar p/ Canal Jurídico
+                                                </button>
+
+                                                <button
+                                                    onClick={() => {
+                                                        if (onOpenLegalChat) onOpenLegalChat(viewingContract);
+                                                    }}
+                                                    className="w-full py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 transition-colors text-slate-600 dark:text-slate-300"
+                                                >
+                                                    <span className="material-symbols-outlined">gavel</span> Abrir Canal Jurídico (Chat)
                                                 </button>
 
                                                 <button
